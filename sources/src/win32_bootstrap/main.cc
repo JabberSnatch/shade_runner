@@ -13,11 +13,25 @@
 #pragma warning(pop)
 
 #pragma warning(push)
-#pragma warning(disable : 4514) // (Wall) C4514 : unreferenced inline function was removed
+// (Wall) C4514 : unreferenced inline function was removed
+#pragma warning(disable : 4514)
 #include <cstdlib>
+
+// (Wall) C4365 : signed/unsigned mismatch
+// (Wall) C4571 : catch(...) semantics changed since Visual C++ 7.1; SEH no longer caught
+// (Wall) C4625 : cpy ctor implicitly deleted
+// (Wall) C4626 : assignment op implicitly deleted
+// (Wall) C4774 : not a string literal
+// (Wall) C4820 : added padding
+// (Wall) C5026 : move ctor implicitly deleted
+// (Wall) C5027 : move assignment implicitly deleted
+#pragma warning(disable : 4365 4571 4625 4626 4774 4820 5026 5027)
+#include <iostream>
 #pragma warning(pop)
 
-#include <iostream>
+#include <GL/glew.h>
+#include <GL/wglew.h>
+
 
 namespace WXtk {
 template <typename T> void unref_param(T&&) {}
@@ -25,6 +39,28 @@ template <typename T> void unref_param(T&&) {}
 
 static const char* wnd_class_name = "ShaderLabMainWindow";
 static const char* wnd_title = "Shader Lab";
+
+
+struct Win32Handles
+{
+	~Win32Handles()
+	{
+		if (hWnd && device_context)
+		{
+			if (gl_context)
+			{
+				std::cout << "deleting gl_context.." << std::endl;
+				wglDeleteContext(gl_context);
+			}
+			std::cout << "releasing device_context.." << std::endl;
+			ReleaseDC(hWnd, device_context);
+		}
+	};
+	HWND hWnd;
+	HDC	device_context;
+	HGLRC gl_context;
+};
+
 
 int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 					 _In_ HINSTANCE hPrevInstance,
@@ -45,7 +81,7 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 	WXtk::unref_param(lpCmdLine);
 	WXtk::unref_param(nCmdShow);
 
-	WNDCLASS wc{};
+	WNDCLASS wc{ 0 };
 	wc.style = CS_OWNDC;
 	wc.lpfnWndProc = static_cast<WNDPROC>(WndProc);
 	wc.cbClsExtra = 0;
@@ -62,23 +98,80 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 		return 1;
 	}
 
-	HWND hWnd = CreateWindow(
-		static_cast<LPCTSTR>(wnd_class_name),
-		static_cast<LPCTSTR>(wnd_title),
-		WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-		CW_USEDEFAULT, CW_USEDEFAULT,
-		1280, 720,
-		NULL,
-		NULL,
-		hInstance,
-		NULL);
-	if (!hWnd)
+	Win32Handles handles{};
 	{
-		MessageBox(NULL, "Window creation failure", NULL, NULL);
-		return 1;
+		handles.hWnd = CreateWindow(
+			static_cast<LPCTSTR>(wnd_class_name),
+			static_cast<LPCTSTR>(wnd_title),
+			WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+			CW_USEDEFAULT, CW_USEDEFAULT,
+			1280, 720,
+			NULL,
+			NULL,
+			hInstance,
+			NULL);
+		if (!handles.hWnd)
+		{
+			MessageBox(NULL, "Window creation failure", NULL, NULL);
+			return 1;
+		}
 	}
 
-	MSG msg{};
+	handles.device_context = GetDC(handles.hWnd);
+
+	{
+		PIXELFORMATDESCRIPTOR pixel_format_desc = { 0 };
+		pixel_format_desc.nSize = sizeof(PIXELFORMATDESCRIPTOR);
+		pixel_format_desc.nVersion = 1;
+		pixel_format_desc.dwFlags =
+			PFD_SUPPORT_OPENGL | PFD_DRAW_TO_WINDOW | PFD_DOUBLEBUFFER;
+		pixel_format_desc.iPixelType = PFD_TYPE_RGBA;
+		pixel_format_desc.cColorBits = 32;
+		pixel_format_desc.cDepthBits = 0; // NOTE: Hope it wasn't too hard finding that one
+		pixel_format_desc.cStencilBits = 0;
+		pixel_format_desc.iLayerType = PFD_MAIN_PLANE;
+
+		const int pixel_format = ChoosePixelFormat(handles.device_context, &pixel_format_desc);
+		SetPixelFormat(handles.device_context, pixel_format, &pixel_format_desc);
+
+		handles.gl_context = wglCreateContext(handles.device_context);
+		wglMakeCurrent(handles.device_context, handles.gl_context);
+
+		if (glewInit() != GLEW_OK)
+			std::cout << "glew failed to initialize." << std::endl;
+
+		const int gl_attributes[] = {
+			//			WGL_CONTEXT_MAJOR_VERSION_ARB, 4,
+			//			WGL_CONTEXT_MINOR_VERSION_ARB, 5,
+			WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
+			0
+		};
+
+		if (wglewIsSupported("WGL_ARB_create_context"))
+		{
+			HGLRC old_context = handles.gl_context;
+			handles.gl_context = wglCreateContextAttribsARB(handles.device_context, 0, gl_attributes);
+			if (handles.gl_context)
+			{
+				wglMakeCurrent(NULL, NULL);
+				wglDeleteContext(old_context);
+				wglMakeCurrent(handles.device_context, handles.gl_context);
+			}
+			else
+			{
+				std::cout << "wglCreateContext failed" << std::endl;
+			}
+		}
+
+		std::cout << "GL init complete : " << std::endl;
+		std::cout << "OpenGL version : " << glGetString(GL_VERSION) << std::endl;
+		std::cout << "Manufacturer : " << glGetString(GL_VENDOR) << std::endl;
+		std::cout << "Drivers : " << glGetString(GL_RENDERER) << std::endl;
+	}
+
+
+
+	MSG msg{ 0 };
 	while (GetMessage(&msg, NULL, 0, 0))
 	{
 		TranslateMessage(&msg);
