@@ -29,16 +29,19 @@
 #include <iostream>
 #pragma warning(pop)
 
+#include <cassert>
+
 #include <GL/glew.h>
 #include <GL/wglew.h>
 
+#include "shaderunner/shaderunner.h"
 
 namespace WXtk {
 template <typename T> void unref_param(T&&) {}
 }
 
-static const char* wnd_class_name = "ShaderLabMainWindow";
-static const char* wnd_title = "Shader Lab";
+static const char* wnd_class_name = "ShadeRunnerMainWindow";
+static const char* wnd_title = "ShadeRunner";
 
 
 struct Win32Handles
@@ -72,6 +75,7 @@ LRESULT CALLBACK WndProc(_In_ HWND   hwnd,
 						 _In_ LPARAM lParam);
 
 
+Win32Handles handles{};
 int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 					 _In_ HINSTANCE hPrevInstance,
 					 _In_ LPSTR     lpCmdLine,
@@ -89,7 +93,7 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 	wc.hInstance = hInstance;
 	wc.hIcon = NULL;
 	wc.hCursor = NULL;
-	wc.hbrBackground = static_cast<HBRUSH>(GetStockObject(GRAY_BRUSH));
+	wc.hbrBackground = static_cast<HBRUSH>(GetStockObject(BLACK_BRUSH));
 	wc.lpszMenuName = NULL;
 	wc.lpszClassName = static_cast<LPCTSTR>(wnd_class_name);
 	if (!RegisterClass(&wc))
@@ -98,7 +102,6 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 		return 1;
 	}
 
-	Win32Handles handles{};
 	{
 		handles.hWnd = CreateWindow(
 			static_cast<LPCTSTR>(wnd_class_name),
@@ -141,8 +144,6 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 			std::cout << "glew failed to initialize." << std::endl;
 
 		const int gl_attributes[] = {
-			//			WGL_CONTEXT_MAJOR_VERSION_ARB, 4,
-			//			WGL_CONTEXT_MINOR_VERSION_ARB, 5,
 			WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
 			0
 		};
@@ -167,12 +168,14 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 		std::cout << "OpenGL version : " << glGetString(GL_VERSION) << std::endl;
 		std::cout << "Manufacturer : " << glGetString(GL_VENDOR) << std::endl;
 		std::cout << "Drivers : " << glGetString(GL_RENDERER) << std::endl;
+
+		wglMakeCurrent(handles.device_context, NULL);
 	}
 
 
 
 	MSG msg{ 0 };
-	while (GetMessage(&msg, NULL, 0, 0))
+	while(GetMessage(&msg, NULL, 0, 0))
 	{
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
@@ -186,17 +189,27 @@ LRESULT CALLBACK WndProc(_In_ HWND   hwnd,
 						 _In_ WPARAM wParam,
 						 _In_ LPARAM lParam)
 {
+	LRESULT result = 0;
+
 	switch(uMsg)
 	{
 	case WM_PAINT:
-		break;
+	{
+		assert(handles.device_context);
+		assert(handles.gl_context);
+		wglMakeCurrent(handles.device_context, handles.gl_context);
+		result = sr::entry_point();
+		::SwapBuffers(handles.device_context);
+		wglMakeCurrent(handles.device_context, NULL);
+		ValidateRect(hwnd, NULL);
+	} break;
 	case WM_DESTROY:
 		PostQuitMessage(0);
 		break;
 	default:
-		return DefWindowProc(hwnd, uMsg, wParam, lParam);
+		result = DefWindowProc(hwnd, uMsg, wParam, lParam);
 		break;
 	}
 
-	return 0;
+	return result;
 }
