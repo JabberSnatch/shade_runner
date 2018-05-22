@@ -7,25 +7,18 @@
  * ----------------------------------------------------------------------------
  */
 
-#pragma once
-#ifndef __YS_SHADERUNNER_HPP__
-#define __YS_SHADERUNNER_HPP__
+R"__SR_SS__(
 
+#version 330 core
 
-namespace sr {
+const vec2 kQuadVertices[] = vec2[6](
+	vec2(-1.0, -1.0), vec2(1.0, -1.0), vec2(1.0, 1.0),
+	vec2(1.0, 1.0), vec2(-1.0, 1.0), vec2(-1.0, -1.0)
+);
 
-class RenderContext
+void main()
 {
-public:
-	RenderContext();
-	~RenderContext();
+	gl_Position = vec4(kQuadVertices[gl_VertexID], 0.0, 1.0);
+}
 
-	int RenderFrame() const;
-private:
-	struct Impl_;
-	Impl_* impl_;
-};
-
-} // namespace sr
-
-#endif __YS_SHADERUNNER_HPP__
+)__SR_SS__"

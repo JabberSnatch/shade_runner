@@ -30,6 +30,7 @@
 #pragma warning(pop)
 
 #include <cassert>
+#include <memory>
 
 #include <GL/glew.h>
 #include <GL/wglew.h>
@@ -39,10 +40,6 @@
 namespace WXtk {
 template <typename T> void unref_param(T&&) {}
 }
-
-static const char* wnd_class_name = "ShadeRunnerMainWindow";
-static const char* wnd_title = "ShadeRunner";
-
 
 struct Win32Handles
 {
@@ -75,7 +72,13 @@ LRESULT CALLBACK WndProc(_In_ HWND   hwnd,
 						 _In_ LPARAM lParam);
 
 
+// =============================================================================
+static const char* wnd_class_name = "ShadeRunnerMainWindow";
+static const char* wnd_title = "ShadeRunner";
+
 Win32Handles handles{};
+std::unique_ptr<sr::RenderContext> sr_context{};
+
 int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 					 _In_ HINSTANCE hPrevInstance,
 					 _In_ LPSTR     lpCmdLine,
@@ -169,10 +172,10 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 		std::cout << "Manufacturer : " << glGetString(GL_VENDOR) << std::endl;
 		std::cout << "Drivers : " << glGetString(GL_RENDERER) << std::endl;
 
+		sr_context.reset(new sr::RenderContext());
+
 		wglMakeCurrent(handles.device_context, NULL);
 	}
-
-
 
 	MSG msg{ 0 };
 	while(GetMessage(&msg, NULL, 0, 0))
@@ -197,8 +200,9 @@ LRESULT CALLBACK WndProc(_In_ HWND   hwnd,
 	{
 		assert(handles.device_context);
 		assert(handles.gl_context);
+		assert(sr_context);
 		wglMakeCurrent(handles.device_context, handles.gl_context);
-		result = sr::entry_point();
+		result = sr_context->RenderFrame();
 		::SwapBuffers(handles.device_context);
 		wglMakeCurrent(handles.device_context, NULL);
 		ValidateRect(hwnd, NULL);
