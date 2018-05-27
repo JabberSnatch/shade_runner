@@ -32,6 +32,7 @@
 #include <cassert>
 #include <memory>
 
+#include <boost/numeric/conversion/cast.hpp>
 #include <GL/glew.h>
 #include <GL/wglew.h>
 
@@ -73,8 +74,8 @@ LRESULT CALLBACK WndProc(_In_ HWND   hwnd,
 
 
 // =============================================================================
-static const char* wnd_class_name = "ShadeRunnerMainWindow";
-static const char* wnd_title = "ShadeRunner";
+static char const *wnd_class_name = "ShadeRunnerMainWindow";
+static char const *wnd_title = "ShadeRunner";
 
 Win32Handles handles{};
 std::unique_ptr<sr::RenderContext> sr_context{};
@@ -135,7 +136,6 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 		pixel_format_desc.cColorBits = 32;
 		pixel_format_desc.cDepthBits = 0; // NOTE: Hope it wasn't too hard finding that one
 		pixel_format_desc.cStencilBits = 0;
-		pixel_format_desc.iLayerType = PFD_MAIN_PLANE;
 
 		const int pixel_format = ChoosePixelFormat(handles.device_context, &pixel_format_desc);
 		SetPixelFormat(handles.device_context, pixel_format, &pixel_format_desc);
@@ -146,8 +146,14 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 		if (glewInit() != GLEW_OK)
 			std::cout << "glew failed to initialize." << std::endl;
 
+		constexpr int kProfileBit =
+#ifdef SR_GL_COMPATIBILITY_PROFILE
+			WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB;
+#else
+			WGL_CONTEXT_CORE_PROFILE_BIT_ARB;
+#endif
 		const int gl_attributes[] = {
-			WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
+			WGL_CONTEXT_PROFILE_MASK_ARB, kProfileBit,
 			0
 		};
 
@@ -171,6 +177,15 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 		std::cout << "OpenGL version : " << glGetString(GL_VERSION) << std::endl;
 		std::cout << "Manufacturer : " << glGetString(GL_VENDOR) << std::endl;
 		std::cout << "Drivers : " << glGetString(GL_RENDERER) << std::endl;
+
+		if (wglSwapIntervalEXT(1))
+		{
+			std::cout << "Vsync enabled" << std::endl;
+		}
+		else
+		{
+			std::cout << "Could not enable Vsync" << std::endl;
+		}
 
 		sr_context.reset(new sr::RenderContext());
 
@@ -205,7 +220,7 @@ LRESULT CALLBACK WndProc(_In_ HWND   hwnd,
 		result = sr_context->RenderFrame();
 		::SwapBuffers(handles.device_context);
 		wglMakeCurrent(handles.device_context, NULL);
-		ValidateRect(hwnd, NULL);
+		//ValidateRect(hwnd, NULL);
 	} break;
 	case WM_DESTROY:
 		PostQuitMessage(0);

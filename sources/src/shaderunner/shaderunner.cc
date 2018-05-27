@@ -9,11 +9,16 @@
 
 #include "shaderunner/shaderunner.h"
 
+#include <array>
 #include <cassert>
+#include <chrono>
 #include <iostream>
 
+#include <boost/numeric/conversion/cast.hpp>
 #include <GL/glew.h>
 
+
+using StdClock = std::chrono::high_resolution_clock;
 
 namespace sr {
 
@@ -37,19 +42,25 @@ RenderContext::Impl_::Impl_() :
 	shader_program{ glCreateProgram() }
 {
 	static char const *vertex_sources[]{
+		"#version 330 core\n",
 		#include "shaders/fullscreen_quad.vert.h"
 	};
+	static GLsizei const vertex_source_count =
+		boost::numeric_cast<GLsizei>(std::size(vertex_sources));
 	static char const *fragment_sources[]{
-		"#version 330 core\nout vec4 frag_color; void main() { frag_color = vec4(1.0 - float(gl_PrimitiveID), 0.0, 1.0, 1.0); } "
+		"#version 330 core\n",
+		"out vec4 frag_color; void main() { frag_color = vec4(1.0 - float(gl_PrimitiveID), 0.0, 1.0, 1.0); } "
 	};
+	static GLsizei const fragment_source_count =
+		boost::numeric_cast<GLsizei>(std::size(fragment_sources));
 
 	GLuint vertex_shader{ glCreateShader(GL_VERTEX_SHADER) };
-	glShaderSource(vertex_shader, 1, vertex_sources, NULL);
+	glShaderSource(vertex_shader, vertex_source_count, vertex_sources, NULL);
 	glCompileShader(vertex_shader);
 	CheckGLShaderError(std::cout, vertex_shader);
 
 	GLuint fragment_shader{ glCreateShader(GL_FRAGMENT_SHADER) };
-	glShaderSource(fragment_shader, 1, fragment_sources, NULL);
+	glShaderSource(fragment_shader, fragment_source_count, fragment_sources, NULL);
 	glCompileShader(fragment_shader);
 	CheckGLShaderError(std::cout, fragment_shader);
 
@@ -82,6 +93,9 @@ RenderContext::~RenderContext()
 int
 RenderContext::RenderFrame() const
 {
+	static StdClock::time_point last_render_time = StdClock::now();
+	StdClock::duration delta_time = StdClock::now() - last_render_time;
+
 	assert([]()
 	{
 		if (ClearGLError())
@@ -94,12 +108,23 @@ RenderContext::RenderFrame() const
 
 	glUseProgram(impl_->shader_program);
 
+	GLuint vao = 0u;
+	glGenVertexArrays(1, &vao);
+	glBindVertexArray(vao);
+
 	std::cout << "Hello World!" << std::endl;
+	std::cout << std::chrono::duration_cast<std::chrono::duration<float>>(delta_time).count() << std::endl;
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 	CheckGLError(std::cout);
 
+	glBindVertexArray(0u);
+	glDeleteVertexArrays(1, &vao);
+
 	glUseProgram(0u);
+#ifdef SR_SINGLE_BUFFERING
 	glFlush();
+#endif
+	last_render_time += delta_time;
 	return 0;
 }
 

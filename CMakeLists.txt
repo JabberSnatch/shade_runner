@@ -5,16 +5,17 @@ option(WARN_VERBOSE "Enable highest warning level and disable warnings as errors
 
 set(SOURCE_DIR sources/src)
 set(INCLUDE_DIR sources/inc)
-set(LIB_DIR lib/)
+set(LIB_DIR lib)
 
 # ==============================================================================
 
 set( LIB_INCLUDE_DIR
 	 ${LIB_DIR}/glew/include/
+	 ${LIB_DIR}/boost/
 	 )
 
 function(_FIND_GL_LIBRARIES OUT)
-	find_package(OpenGL)
+	find_package(OpenGL REQUIRED)
 	find_library(GLEW_LIB glew32 PATHS ${LIB_DIR}/glew/lib/Release/x64/)
 	set(${OUT} "${GLEW_LIB}" ${OPENGL_gl_LIBRARY} PARENT_SCOPE)
 endfunction()
@@ -36,6 +37,7 @@ set( WIN32_BOOTSTRAP_SOURCES
 include_directories(${INCLUDE_DIR} ${LIB_INCLUDE_DIR})
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest")
+
 if (WARN_VERBOSE)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Wall")
 else()

@@ -9,8 +9,6 @@
 
 R"__SR_SS__(
 
-#version 330 core
-
 const vec2 kQuadVertices[] = vec2[6](
 	vec2(-1.0, -1.0), vec2(1.0, -1.0), vec2(1.0, 1.0),
 	vec2(1.0, 1.0), vec2(-1.0, 1.0), vec2(-1.0, -1.0)
