@@ -131,7 +131,11 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 		pixel_format_desc.nSize = sizeof(PIXELFORMATDESCRIPTOR);
 		pixel_format_desc.nVersion = 1;
 		pixel_format_desc.dwFlags =
-			PFD_SUPPORT_OPENGL | PFD_DRAW_TO_WINDOW | PFD_DOUBLEBUFFER;
+#ifndef SR_SINGLE_BUFFERING
+			PFD_DOUBLEBUFFER |
+#endif
+			PFD_SUPPORT_OPENGL |
+			PFD_DRAW_TO_WINDOW;
 		pixel_format_desc.iPixelType = PFD_TYPE_RGBA;
 		pixel_format_desc.cColorBits = 32;
 		pixel_format_desc.cDepthBits = 0; // NOTE: Hope it wasn't too hard finding that one
@@ -207,7 +211,7 @@ LRESULT CALLBACK WndProc(_In_ HWND   hwnd,
 						 _In_ WPARAM wParam,
 						 _In_ LPARAM lParam)
 {
-	LRESULT result = 0;
+	LRESULT result = 1;
 
 	switch(uMsg)
 	{
@@ -217,10 +221,12 @@ LRESULT CALLBACK WndProc(_In_ HWND   hwnd,
 		assert(handles.gl_context);
 		assert(sr_context);
 		wglMakeCurrent(handles.device_context, handles.gl_context);
-		result = sr_context->RenderFrame();
+		if (!sr_context->RenderFrame())
+		{
+			ValidateRect(hwnd, NULL);
+		}
 		::SwapBuffers(handles.device_context);
 		wglMakeCurrent(handles.device_context, NULL);
-		//ValidateRect(hwnd, NULL);
 	} break;
 	case WM_DESTROY:
 		PostQuitMessage(0);

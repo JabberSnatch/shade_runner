@@ -18,6 +18,10 @@
 #include <GL/glew.h>
 
 
+#define SR_SL_ENTRY_POINT(func_name) "#define SR_FRAG_ENTRY_POINT " func_name
+#define SR_SL_DUMMYFSOURCES "out vec4 frag_color; void main() { frag_color = vec4(1.0 - float(gl_PrimitiveID), 0.0, 1.0, 1.0); } "
+
+
 using StdClock = std::chrono::high_resolution_clock;
 
 namespace sr {
@@ -34,54 +38,81 @@ struct RenderContext::Impl_
 public:
 	Impl_();
 	~Impl_();
+
+
 public:
 	GLuint shader_program;
+	GLuint dummy_vao;
 };
 
 RenderContext::Impl_::Impl_() :
-	shader_program{ glCreateProgram() }
+	shader_program{ glCreateProgram() },
+	dummy_vao{ 0u }
 {
-	static char const *vertex_sources[]{
-		"#version 330 core\n",
-		#include "shaders/fullscreen_quad.vert.h"
-	};
-	static GLsizei const vertex_source_count =
-		boost::numeric_cast<GLsizei>(std::size(vertex_sources));
-	static char const *fragment_sources[]{
-		"#version 330 core\n",
-		"out vec4 frag_color; void main() { frag_color = vec4(1.0 - float(gl_PrimitiveID), 0.0, 1.0, 1.0); } "
-	};
-	static GLsizei const fragment_source_count =
-		boost::numeric_cast<GLsizei>(std::size(fragment_sources));
-
-	GLuint vertex_shader{ glCreateShader(GL_VERTEX_SHADER) };
-	glShaderSource(vertex_shader, vertex_source_count, vertex_sources, NULL);
-	glCompileShader(vertex_shader);
-	CheckGLShaderError(std::cout, vertex_shader);
-
-	GLuint fragment_shader{ glCreateShader(GL_FRAGMENT_SHADER) };
-	glShaderSource(fragment_shader, fragment_source_count, fragment_sources, NULL);
-	glCompileShader(fragment_shader);
-	CheckGLShaderError(std::cout, fragment_shader);
-
-	glAttachShader(shader_program, vertex_shader);
-	glAttachShader(shader_program, fragment_shader);
-	glLinkProgram(shader_program);
 	{
-		GLint success;
-		glGetProgramiv(shader_program, GL_LINK_STATUS, &success);
-		if (!success)
-			std::cout << "Shader link error ." << std::endl;
+		static char const *vertex_sources[] = {
+			"#version 330 core\n",
+			#include "shaders/fullscreen_quad.vert.h"
+		};
+		static GLsizei const vertex_source_count =
+			boost::numeric_cast<GLsizei>(std::size(vertex_sources));
+
+		static char const *fragment_sources[] = {
+			"#version 330 core\n",
+
+			//SR_SL_DUMMYFSOURCES,
+
+			R"__SR_SS__(
+void imageMain(inout vec4 frag_color, vec2 frag_coord)
+{
+	frag_color.xy = frag_coord / vec2(1280, 720);
+	frag_color.a = 1.0;
+}
+			)__SR_SS__"
+			,
+			SR_SL_ENTRY_POINT("imageMain"),
+			#include "shaders/entry_point.frag.h"
+		};
+		static GLsizei const fragment_source_count =
+			boost::numeric_cast<GLsizei>(std::size(fragment_sources));
+
+		GLuint vertex_shader{ glCreateShader(GL_VERTEX_SHADER) };
+		glShaderSource(vertex_shader, vertex_source_count, vertex_sources, NULL);
+		glCompileShader(vertex_shader);
+		CheckGLShaderError(std::cout, vertex_shader);
+
+		GLuint fragment_shader{ glCreateShader(GL_FRAGMENT_SHADER) };
+		glShaderSource(fragment_shader, fragment_source_count, fragment_sources, NULL);
+		glCompileShader(fragment_shader);
+		CheckGLShaderError(std::cout, fragment_shader);
+
+		glAttachShader(shader_program, vertex_shader);
+		glAttachShader(shader_program, fragment_shader);
+		glLinkProgram(shader_program);
+		{
+			GLint success;
+			glGetProgramiv(shader_program, GL_LINK_STATUS, &success);
+			if (!success)
+				std::cout << "Shader link error ." << std::endl;
+		}
+		glDeleteShader(vertex_shader);
+		glDeleteShader(fragment_shader);
 	}
-	glDeleteShader(vertex_shader);
-	glDeleteShader(fragment_shader);
+
+	{
+		glGenVertexArrays(1, &dummy_vao);
+	}
 }
 
 RenderContext::Impl_::~Impl_()
 {
 	glDeleteProgram(shader_program);
+
+	glDeleteVertexArrays(1, &dummy_vao);
 }
 
+
+// =============================================================================
 
 RenderContext::RenderContext() :
 	impl_(new RenderContext::Impl_())
@@ -90,11 +121,14 @@ RenderContext::RenderContext() :
 RenderContext::~RenderContext()
 { delete impl_; }
 
-int
+bool
 RenderContext::RenderFrame() const
 {
 	static StdClock::time_point last_render_time = StdClock::now();
 	StdClock::duration delta_time = StdClock::now() - last_render_time;
+	std::cout << std::chrono::duration_cast<std::chrono::duration<float>>(delta_time).count() << std::endl;
+
+	bool start_over = false;
 
 	assert([]()
 	{
@@ -107,27 +141,24 @@ RenderContext::RenderFrame() const
 	glClearBufferfv(GL_COLOR, 0, clear_color);
 
 	glUseProgram(impl_->shader_program);
+	glBindVertexArray(impl_->dummy_vao);
 
-	GLuint vao = 0u;
-	glGenVertexArrays(1, &vao);
-	glBindVertexArray(vao);
-
-	std::cout << "Hello World!" << std::endl;
-	std::cout << std::chrono::duration_cast<std::chrono::duration<float>>(delta_time).count() << std::endl;
 	glDrawArrays(GL_TRIANGLES, 0, 6);
-	CheckGLError(std::cout);
+	start_over = start_over | (CheckGLError(std::cout) == GL_NO_ERROR);
 
 	glBindVertexArray(0u);
-	glDeleteVertexArrays(1, &vao);
-
 	glUseProgram(0u);
+
 #ifdef SR_SINGLE_BUFFERING
 	glFlush();
 #endif
+
 	last_render_time += delta_time;
-	return 0;
+	return start_over;
 }
 
+
+// =============================================================================
 
 std::string const &GetGLErrorString(GLenum const _error)
 {

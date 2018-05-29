@@ -7,25 +7,15 @@
  * ----------------------------------------------------------------------------
  */
 
-#pragma once
-#ifndef __YS_SHADERUNNER_HPP__
-#define __YS_SHADERUNNER_HPP__
+R"__SR_SS__(
 
+out vec4 frag_color;
 
-namespace sr {
-
-class RenderContext
+void main()
 {
-public:
-	RenderContext();
-	~RenderContext();
+	frag_color = vec4(0.0);
+	vec2 frag_coord = floor(gl_FragCoord).xy;
+	SR_FRAG_ENTRY_POINT(frag_color, frag_coord);
+}
 
-	bool RenderFrame() const;
-private:
-	struct Impl_;
-	Impl_* impl_;
-};
-
-} // namespace sr
-
-#endif __YS_SHADERUNNER_HPP__
+)__SR_SS__"
