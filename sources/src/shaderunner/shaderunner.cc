@@ -13,6 +13,7 @@
 #include <cassert>
 #include <chrono>
 #include <iostream>
+#include <vector>
 
 #include <boost/numeric/conversion/cast.hpp>
 #include <GL/glew.h>
@@ -39,14 +40,20 @@ public:
 	Impl_();
 	~Impl_();
 
+public:
+	void LoadFragmentShader(std::vector<char const *> &_sources);
 
 public:
 	GLuint shader_program;
+	GLuint cached_vshader;
+	GLuint cached_fshader;
 	GLuint dummy_vao;
 };
 
 RenderContext::Impl_::Impl_() :
-	shader_program{ glCreateProgram() },
+	shader_program{ 0u },
+	cached_vshader{ 0u },
+	cached_fshader{ 0u },
 	dummy_vao{ 0u }
 {
 	{
@@ -57,7 +64,7 @@ RenderContext::Impl_::Impl_() :
 		static GLsizei const vertex_source_count =
 			boost::numeric_cast<GLsizei>(std::size(vertex_sources));
 
-		static char const *fragment_sources[] = {
+		static std::vector<char const *>fragment_sources{
 			"#version 330 core\n",
 
 			//SR_SL_DUMMYFSOURCES,
@@ -73,21 +80,17 @@ void imageMain(inout vec4 frag_color, vec2 frag_coord)
 			SR_SL_ENTRY_POINT("imageMain"),
 			#include "shaders/entry_point.frag.h"
 		};
-		static GLsizei const fragment_source_count =
-			boost::numeric_cast<GLsizei>(std::size(fragment_sources));
 
-		GLuint vertex_shader{ glCreateShader(GL_VERTEX_SHADER) };
-		glShaderSource(vertex_shader, vertex_source_count, vertex_sources, NULL);
-		glCompileShader(vertex_shader);
-		CheckGLShaderError(std::cout, vertex_shader);
+		LoadFragmentShader(fragment_sources);
 
-		GLuint fragment_shader{ glCreateShader(GL_FRAGMENT_SHADER) };
-		glShaderSource(fragment_shader, fragment_source_count, fragment_sources, NULL);
-		glCompileShader(fragment_shader);
-		CheckGLShaderError(std::cout, fragment_shader);
+		cached_vshader = glCreateShader(GL_VERTEX_SHADER);
+		glShaderSource(cached_vshader, vertex_source_count, vertex_sources, NULL);
+		glCompileShader(cached_vshader);
+		CheckGLShaderError(std::cout, cached_vshader);
 
-		glAttachShader(shader_program, vertex_shader);
-		glAttachShader(shader_program, fragment_shader);
+		shader_program = glCreateProgram();
+		glAttachShader(shader_program, cached_vshader);
+		glAttachShader(shader_program, cached_fshader);
 		glLinkProgram(shader_program);
 		{
 			GLint success;
@@ -95,8 +98,6 @@ void imageMain(inout vec4 frag_color, vec2 frag_coord)
 			if (!success)
 				std::cout << "Shader link error ." << std::endl;
 		}
-		glDeleteShader(vertex_shader);
-		glDeleteShader(fragment_shader);
 	}
 
 	{
@@ -107,8 +108,24 @@ void imageMain(inout vec4 frag_color, vec2 frag_coord)
 RenderContext::Impl_::~Impl_()
 {
 	glDeleteProgram(shader_program);
+	glDeleteShader(cached_vshader);
+	glDeleteShader(cached_fshader);
 
 	glDeleteVertexArrays(1, &dummy_vao);
+}
+
+
+void RenderContext::Impl_::LoadFragmentShader(std::vector<char const *> &_sources)
+{
+	GLsizei const _source_count = boost::numeric_cast<GLsizei>(_sources.size());
+	if (cached_fshader)
+	{
+		glDeleteShader(cached_fshader);
+	}
+	cached_fshader = glCreateShader(GL_FRAGMENT_SHADER);
+	glShaderSource(cached_fshader, _source_count, _sources.data(), NULL);
+	glCompileShader(cached_fshader);
+	CheckGLShaderError(std::cout, cached_fshader);
 }
 
 
