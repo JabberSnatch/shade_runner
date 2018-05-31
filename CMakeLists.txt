@@ -36,13 +36,15 @@ set( WIN32_BOOTSTRAP_SOURCES
 
 include_directories(${INCLUDE_DIR} ${LIB_INCLUDE_DIR})
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest")
+function(_COMMON_COMPILE_OPTIONS)
+	add_compile_options(-std:c++latest)
 
-if (WARN_VERBOSE)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Wall")
-else()
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /WX")
-endif(WARN_VERBOSE)
+	if (WARN_VERBOSE)
+	add_compile_options(-Wall)
+	else()
+	add_compile_options(-W4 -WX)
+	endif(WARN_VERBOSE)
+endfunction()
 
 add_definitions()
 
@@ -50,6 +52,7 @@ add_definitions()
 
 project(shaderunner)
 
+_common_compile_options()
 _find_gl_libraries(GL_LIBRARIES)
 add_library(shaderunner STATIC ${SHADERUNNER_SOURCES})
 target_link_libraries( shaderunner
@@ -61,6 +64,7 @@ target_link_libraries( shaderunner
 
 project(win32_bootstrap)
 
+_common_compile_options()
 _find_gl_libraries(GL_LIBRARIES)
 add_executable(win32_bootstrap WIN32 ${WIN32_BOOTSTRAP_SOURCES})
 target_link_libraries( win32_bootstrap

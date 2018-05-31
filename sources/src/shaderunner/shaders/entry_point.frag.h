@@ -15,7 +15,7 @@ void main()
 {
 	frag_color = vec4(0.0);
 	vec2 frag_coord = floor(gl_FragCoord).xy;
-	SR_FRAG_ENTRY_POINT(frag_color, frag_coord);
+	SR_ENTRY_POINT(frag_color, frag_coord);
 }
 
 )__SR_SS__"
