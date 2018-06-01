@@ -9,9 +9,11 @@
 
 #include "shaderunner/shaderunner.h"
 
+#include <algorithm>
 #include <cassert>
 #include <chrono>
 #include <iostream>
+#include <iterator>
 #include <vector>
 
 #include <boost/numeric/conversion/cast.hpp>
@@ -20,7 +22,7 @@
 
 #define SR_GLSL_VERSION "#version 330 core\n"
 #define SR_SL_ENTRY_POINT(entry_point) "#define SR_ENTRY_POINT " entry_point "\n"
-#define SR_SL_DUMMYFSOURCES "out vec4 frag_color; void main() { frag_color = vec4(1.0 - float(gl_PrimitiveID), 0.0, 1.0, 1.0); } "
+#define SR_SL_DUMMY_FSOURCES "void imageMain(inout vec4 frag_color, vec2 frag_coord) { frag_color = vec4(1.0 - float(gl_PrimitiveID), 0.0, 1.0, 1.0); } \n"
 
 
 using StdClock = std::chrono::high_resolution_clock;
@@ -74,30 +76,8 @@ using GLShaderPtr = GLHandle<GLShaderDeleter>;
 
 using ShaderSources_t = std::vector<char const *>;
 
-GLShaderPtr CompileFragmentKernel(ShaderSources_t &_kernel_sources);
+GLShaderPtr CompileFragmentKernel(ShaderSources_t const &_kernel_sources);
 GLShaderPtr CompileShader(GLenum _type, ShaderSources_t &_sources);
-
-
-// =============================================================================
-
-template <int I = 0>
-struct find_str
-{
-	using StrType = char const *const;
-#if 0
-	static constexpr int value(StrType (&_array)[], StrType _value)
-	{
-		static_assert(I < std::size(_array), "elem not found");
-		return !strcmp(_array[I], _value) ? I : find_str<I+1>::value(_array, _value);
-	}
-#endif
-	template <int N>
-	static constexpr int value(StrType (&_array)[N], StrType _value)
-	{
-		static_assert(I < N, "elem not found");
-		return (&(_array[I]) == &_value) ? I : find_str<I+1>::value(_array, _value);
-	}
-};
 
 // =============================================================================
 
@@ -123,30 +103,16 @@ RenderContext::Impl_::Impl_() :
 	dummy_vao{ 0u }
 {
 	{
-		static ShaderSources_t vertex_sources = {
+		static ShaderSources_t vertex_sources{
 			SR_GLSL_VERSION,
-			#include "shaders/fullscreen_quad.vert.h"
+			#include "shaders/fullscreen_tri.vert.h"
 		};
-
-		static ShaderSources_t fragment_sources{
-			SR_GLSL_VERSION,
-			//			SR_SL_DUMMYFSOURCES,
-
-			R"__SR_SS__(
-void imageMain(inout vec4 frag_color, vec2 frag_coord)
-{
-	frag_color.xy = frag_coord / vec2(1280, 720);
-	frag_color.a = 1.0;
-}
-			)__SR_SS__"
-			,
-
-			SR_SL_ENTRY_POINT("imageMain"),
-			#include "shaders/entry_point.frag.h"
-		};
-
-		cached_fshader = CompileShader(GL_FRAGMENT_SHADER, fragment_sources);
 		cached_vshader = CompileShader(GL_VERTEX_SHADER, vertex_sources);
+
+		static ShaderSources_t const default_fkernel{
+			SR_SL_DUMMY_FSOURCES
+		};
+		cached_fshader = CompileFragmentKernel(default_fkernel);
 
 		shader_program.reset(glCreateProgram());
 		glAttachShader(shader_program, cached_vshader);
@@ -171,23 +137,26 @@ RenderContext::Impl_::~Impl_()
 }
 
 
-GLShaderPtr CompileFragmentKernel(ShaderSources_t &)
+GLShaderPtr CompileFragmentKernel(ShaderSources_t const &_kernel_sources)
 {
-	static constexpr char const *kKernelLocation = "\0\0";
-	static constexpr char const *kKernelWrapper[] = {
-			SR_GLSL_VERSION,
-			kKernelLocation,
-			SR_SL_ENTRY_POINT("imageMain"),
-			#include "shaders/entry_point.frag.h"
+	static ShaderSources_t const kKernelPrefix{
+		SR_GLSL_VERSION
 	};
-	//static constexpr int kIndex = find_str<>::value(kKernelWrapper, kKernelLocation);
-	//	static_assert(kKernelLocation == kKernelWrapper[kIndex], "find_elem failed");
-	//	std::cout << kIndex << std::endl;
+	static ShaderSources_t const kKernelSuffix{
+		SR_SL_ENTRY_POINT("imageMain"),
+		#include "shaders/entry_point.frag.h"
+	};
 
-	return GLShaderPtr{ 0u };
+	ShaderSources_t shader_sources{};
+	shader_sources.reserve(kKernelPrefix.size() + _kernel_sources.size() + kKernelSuffix.size());
+	std::copy(kKernelPrefix.cbegin(), kKernelPrefix.cend(), std::back_inserter(shader_sources));
+	std::copy(_kernel_sources.cbegin(), _kernel_sources.cend(), std::back_inserter(shader_sources));
+	std::copy(kKernelSuffix.cbegin(), kKernelSuffix.cend(), std::back_inserter(shader_sources));
+
+	return CompileShader(GL_FRAGMENT_SHADER, shader_sources);
 }
 
-GLShaderPtr CompileShader(GLenum _type, std::vector<char const *> &_sources)
+GLShaderPtr CompileShader(GLenum _type, ShaderSources_t &_sources)
 {
 	GLsizei const source_count = boost::numeric_cast<GLsizei>(_sources.size());
 	GLShaderPtr result{ glCreateShader(_type) };
@@ -216,12 +185,6 @@ RenderContext::RenderFrame() const
 
 	bool start_over = true;
 
-#if 0
-	ShaderSources_t yolo{};
-	CompileFragmentKernel(yolo);
-	start_over = false;
-#endif
-
 	assert([]()
 	{
 		if (glerror::ClearGLError())
@@ -235,7 +198,7 @@ RenderContext::RenderFrame() const
 	glUseProgram(impl_->shader_program);
 	glBindVertexArray(impl_->dummy_vao);
 
-	glDrawArrays(GL_TRIANGLES, 0, 6);
+	glDrawArrays(GL_TRIANGLES, 0, 3);
 	start_over = start_over && (glerror::CheckGLError(std::cout) == GL_NO_ERROR);
 
 	glBindVertexArray(0u);
