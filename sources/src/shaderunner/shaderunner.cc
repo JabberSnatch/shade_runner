@@ -22,7 +22,7 @@
 
 #define SR_GLSL_VERSION "#version 330 core\n"
 #define SR_SL_ENTRY_POINT(entry_point) "#define SR_ENTRY_POINT " entry_point "\n"
-#define SR_SL_DUMMY_FSOURCES "void imageMain(inout vec4 frag_color, vec2 frag_coord) { frag_color = vec4(1.0 - float(gl_PrimitiveID), 0.0, 1.0, 1.0); } \n"
+#define SR_SL_DUMMY_FKERNEL "void imageMain(inout vec4 frag_color, vec2 frag_coord) { frag_color = vec4(1.0 - float(gl_PrimitiveID), 0.0, 1.0, 1.0); } \n"
 
 
 using StdClock = std::chrono::high_resolution_clock;
@@ -33,8 +33,9 @@ namespace sr {
 
 namespace glerror {
 std::string const &GetGLErrorString(GLenum const _error);
-void CheckGLShaderError(std::ostream& _ostream, GLuint const _shader);
-GLenum CheckGLError(std::ostream& _ostream);
+bool PrintShaderError(std::ostream& _ostream, GLuint const _shader);
+bool PrintProgramError(std::ostream& _ostream, GLuint const _program);
+GLenum PrintError(std::ostream& _ostream);
 bool ClearGLError();
 } //namespace glerror
 
@@ -50,6 +51,7 @@ struct GLHandle
 	GLHandle &operator=(GLHandle const &_v) = delete;
 	GLHandle &operator=(GLHandle &&_v){ reset(_v.handle); _v.handle = 0u; return *this;}
 	operator GLuint() const { return handle; }
+	operator bool() const { return handle != 0u; }
 	void reset(GLuint _h){ _delete(); handle = _h; }
 private:
 	void _delete() { if (handle) Deleter{}(handle); }
@@ -60,6 +62,7 @@ struct GLProgramDeleter
 {
 	void operator()(GLuint _program)
 	{
+		std::cout << "gl program deleted" << std::endl;
 		glDeleteProgram(_program);
 	}
 };
@@ -67,6 +70,7 @@ struct GLShaderDeleter
 {
 	void operator()(GLuint _shader)
 	{
+		std::cout << "gl shader deleted" << std::endl;
 		glDeleteShader(_shader);
 	}
 };
@@ -75,9 +79,11 @@ using GLProgramPtr = GLHandle<GLProgramDeleter>;
 using GLShaderPtr = GLHandle<GLShaderDeleter>;
 
 using ShaderSources_t = std::vector<char const *>;
+using ShaderBinaries_t = std::vector<GLuint>;
 
 GLShaderPtr CompileFragmentKernel(ShaderSources_t const &_kernel_sources);
 GLShaderPtr CompileShader(GLenum _type, ShaderSources_t &_sources);
+GLProgramPtr LinkProgram(ShaderBinaries_t const &_binaries);
 
 // =============================================================================
 
@@ -110,20 +116,18 @@ RenderContext::Impl_::Impl_() :
 		cached_vshader = CompileShader(GL_VERTEX_SHADER, vertex_sources);
 
 		static ShaderSources_t const default_fkernel{
-			SR_SL_DUMMY_FSOURCES
+			SR_SL_DUMMY_FKERNEL
 		};
 		cached_fshader = CompileFragmentKernel(default_fkernel);
 
-		shader_program.reset(glCreateProgram());
-		glAttachShader(shader_program, cached_vshader);
-		glAttachShader(shader_program, cached_fshader);
-		glLinkProgram(shader_program);
-		{
-			GLint success;
-			glGetProgramiv(shader_program, GL_LINK_STATUS, &success);
-			if (!success)
-				std::cout << "Shader link error ." << std::endl;
-		}
+		assert(cached_vshader);
+		assert(cached_fshader);
+		ShaderBinaries_t const shader_binaries{
+			cached_vshader,
+			cached_fshader
+		};
+		shader_program = LinkProgram(shader_binaries);
+		assert(shader_program);
 	}
 
 	{
@@ -136,6 +140,8 @@ RenderContext::Impl_::~Impl_()
 	glDeleteVertexArrays(1, &dummy_vao);
 }
 
+
+// =============================================================================
 
 GLShaderPtr CompileFragmentKernel(ShaderSources_t const &_kernel_sources)
 {
@@ -162,7 +168,24 @@ GLShaderPtr CompileShader(GLenum _type, ShaderSources_t &_sources)
 	GLShaderPtr result{ glCreateShader(_type) };
 	glShaderSource(result, source_count, _sources.data(), NULL);
 	glCompileShader(result);
-	glerror::CheckGLShaderError(std::cout, result);
+	if (glerror::PrintShaderError(std::cout, result))
+	{
+		result.reset(0u);
+	}
+	return result;
+}
+
+GLProgramPtr LinkProgram(ShaderBinaries_t const &_binaries)
+{
+	GLProgramPtr result{ glCreateProgram() };
+	std::for_each(_binaries.cbegin(), _binaries.cend(), [&result](GLuint _shader) {
+		glAttachShader(result, _shader);
+	});
+	glLinkProgram(result);
+	if (glerror::PrintProgramError(std::cout, result))
+	{
+		result.reset(0u);
+	}
 	return result;
 }
 
@@ -185,12 +208,7 @@ RenderContext::RenderFrame() const
 
 	bool start_over = true;
 
-	assert([]()
-	{
-		if (glerror::ClearGLError())
-			std::cout << "Lingering GL error detected" << std::endl;
-		return true;
-	}());
+	assert(!glerror::ClearGLError());
 
 	static GLfloat const clear_color[]{ 0.5f, 0.5f, 0.5f, 1.f };
 	glClearBufferfv(GL_COLOR, 0, clear_color);
@@ -199,7 +217,7 @@ RenderContext::RenderFrame() const
 	glBindVertexArray(impl_->dummy_vao);
 
 	glDrawArrays(GL_TRIANGLES, 0, 3);
-	start_over = start_over && (glerror::CheckGLError(std::cout) == GL_NO_ERROR);
+	start_over = start_over && (glerror::PrintError(std::cout) == GL_NO_ERROR);
 
 	glBindVertexArray(0u);
 	glUseProgram(0u);
@@ -210,6 +228,27 @@ RenderContext::RenderFrame() const
 
 	last_render_time += delta_time;
 	return start_over;
+}
+
+
+bool
+RenderContext::LoadFragmentKernel(char const *_sources)
+{
+	ShaderSources_t const kernel_sources{ _sources };
+	GLShaderPtr compiled_fshader = CompileFragmentKernel(kernel_sources);
+	if (!compiled_fshader) return false;
+
+	assert(impl_->cached_vshader);
+	ShaderBinaries_t const shader_binaries{
+		impl_->cached_vshader,
+		compiled_fshader
+	};
+	GLProgramPtr linked_program = LinkProgram(shader_binaries);
+	if (!linked_program) return false;
+
+	impl_->cached_fshader = std::move(compiled_fshader);
+	impl_->shader_program = std::move(linked_program);
+	return true;
 }
 
 
@@ -261,11 +300,13 @@ std::string const &GetGLErrorString(GLenum const _error)
 	}
 }
 
-void CheckGLShaderError(std::ostream& _ostream, GLuint const _shader)
+bool PrintShaderError(std::ostream& _ostream, GLuint const _shader)
 {
+	bool result = true;
 	GLint success = GL_FALSE;
 	glGetShaderiv(_shader, GL_COMPILE_STATUS, &success);
-	if (!success)
+	result = success != GL_TRUE;
+	if (result)
 	{
 		_ostream << "Shader compile error : " << std::endl;
 		{ // TODO: make sure char[] allocation is safe enough
@@ -278,9 +319,32 @@ void CheckGLShaderError(std::ostream& _ostream, GLuint const _shader)
 			delete[] info_log;
 		}
 	}
+	return result;
 }
 
-GLenum CheckGLError(std::ostream& _ostream)
+bool PrintProgramError(std::ostream& _ostream, GLuint const _program)
+{
+	bool result = true;
+	GLint success = GL_FALSE;
+	glGetProgramiv(_program, GL_LINK_STATUS, &success);
+	result = success != GL_TRUE;
+	if (result)
+	{
+		_ostream << "Shader link error : " << std::endl;
+		{
+			GLsizei log_size = 0;
+			glGetProgramiv(_program, GL_INFO_LOG_LENGTH, &log_size);
+			assert(log_size != 0);
+			char* const info_log = new char[log_size];
+			glGetShaderInfoLog(_program, log_size, NULL, info_log);
+			_ostream << info_log << std::endl;
+			delete[] info_log;
+		}
+	}
+	return result;
+}
+
+GLenum PrintError(std::ostream& _ostream)
 {
 	GLenum const error_code = glGetError();
 	if (error_code != GL_NO_ERROR)

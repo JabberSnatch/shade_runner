@@ -21,6 +21,7 @@ public:
 	~RenderContext();
 
 	bool RenderFrame() const;
+	bool LoadFragmentKernel(char const *_sources);
 private:
 	struct Impl_;
 	Impl_* impl_;
