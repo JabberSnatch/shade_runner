@@ -8,25 +8,30 @@
  */
 
 #pragma once
-#ifndef __YS_SHADERUNNER_HPP__
-#define __YS_SHADERUNNER_HPP__
+#ifndef __YS_FILE_HPP__
+#define __YS_FILE_HPP__
 
 
-namespace sr {
+#include <ctime>
+#include <string>
 
-class RenderContext
+
+namespace utility {
+
+class File
 {
 public:
-	RenderContext();
-	~RenderContext();
-
-	bool RenderFrame();
-	void WatchFKernelFile(char const *_path);
+	File() = default;
+	File(std::string const &_path);
+	bool Exists() const;
+	std::string ReadAll();
+	bool HasChanged() const;
 private:
-	struct Impl_;
-	Impl_* impl_;
+	std::string path_ = "";
+	std::time_t read_time_ = static_cast<std::time_t>(0);
 };
 
-} // namespace sr
+} // namespace utility
 
-#endif __YS_SHADERUNNER_HPP__
+
+#endif __YS_FILE_HPP__

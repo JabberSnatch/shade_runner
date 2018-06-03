@@ -7,26 +7,9 @@
  * ----------------------------------------------------------------------------
  */
 
-#pragma once
-#ifndef __YS_SHADERUNNER_HPP__
-#define __YS_SHADERUNNER_HPP__
 
-
-namespace sr {
-
-class RenderContext
-{
-public:
-	RenderContext();
-	~RenderContext();
-
-	bool RenderFrame();
-	void WatchFKernelFile(char const *_path);
-private:
-	struct Impl_;
-	Impl_* impl_;
-};
-
-} // namespace sr
-
-#endif __YS_SHADERUNNER_HPP__
+void imageMain(inout vec4 frag_color, vec2 frag_coord) {
+	vec2 uv = frag_coord / vec2(1280.0, 720.0);
+	frag_color.xz = abs(vec2(1.0) - abs(uv * 2.0 - vec2(1.0)));
+	frag_color.a = 1.0;
+}

@@ -22,6 +22,11 @@ endfunction()
 
 # ==============================================================================
 
+set(UTILITY_DIR ${SOURCE_DIR}/utility)
+set( UTILITY_SOURCES
+	 ${UTILITY_DIR}/file.cc
+	 )
+
 set(SHADERUNNER_DIR ${SOURCE_DIR}/shaderunner)
 set( SHADERUNNER_SOURCES
 	 ${SHADERUNNER_DIR}/shaderunner.cc
@@ -34,9 +39,10 @@ set( WIN32_BOOTSTRAP_SOURCES
 
 # ==============================================================================
 
-include_directories(${INCLUDE_DIR} ${LIB_INCLUDE_DIR})
+function(_COMMON_PROJECT_OPTIONS)
+	include_directories(${INCLUDE_DIR} ${LIB_INCLUDE_DIR})
+	link_directories(${LIB_DIR}/boost/lib/)
 
-function(_COMMON_COMPILE_OPTIONS)
 	add_compile_options(-std:c++latest)
 
 	if (WARN_VERBOSE)
@@ -46,25 +52,31 @@ function(_COMMON_COMPILE_OPTIONS)
 	endif(WARN_VERBOSE)
 endfunction()
 
-add_definitions()
-
 # ==============================================================================
+
+project(utility)
+
+_common_project_options()
+add_library(utility STATIC ${UTILITY_SOURCES})
+
+# ______________________________________________________________________________
 
 project(shaderunner)
 
-_common_compile_options()
+_common_project_options()
 _find_gl_libraries(GL_LIBRARIES)
 add_library(shaderunner STATIC ${SHADERUNNER_SOURCES})
 target_link_libraries( shaderunner
 					   PRIVATE
 					   "${GL_LIBRARIES}"
+					   utility
 					   )
 
 # ______________________________________________________________________________
 
 project(win32_bootstrap)
 
-_common_compile_options()
+_common_project_options()
 _find_gl_libraries(GL_LIBRARIES)
 add_executable(win32_bootstrap WIN32 ${WIN32_BOOTSTRAP_SOURCES})
 target_link_libraries( win32_bootstrap
@@ -72,9 +84,20 @@ target_link_libraries( win32_bootstrap
 					   "${GL_LIBRARIES}"
 					   shaderunner
 					   )
+
 add_custom_command( TARGET win32_bootstrap POST_BUILD
 					COMMAND ${CMAKE_COMMAND} -E copy_if_different
 							"${PROJECT_SOURCE_DIR}/${LIB_DIR}/glew/bin/Release/x64/glew32.dll"
 							$<TARGET_FILE_DIR:win32_bootstrap>
 							)
+
+install( TARGETS win32_bootstrap
+		 DESTINATION .)
+install( FILES ${LIB_DIR}/glew/bin/Release/x64/glew32.dll
+		 DESTINATION .)
+
+# ==============================================================================
+set(CPACK_PACKAGE_NAME "Shade Runner")
+set(CPACK_PACKAGE_VERSION "0.0.0")
+include(CPack)
 

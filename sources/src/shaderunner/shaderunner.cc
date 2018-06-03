@@ -19,6 +19,8 @@
 #include <boost/numeric/conversion/cast.hpp>
 #include <GL/glew.h>
 
+#include "utility/file.h"
+
 
 #define SR_GLSL_VERSION "#version 330 core\n"
 #define SR_SL_ENTRY_POINT(entry_point) "#define SR_ENTRY_POINT " entry_point "\n"
@@ -26,6 +28,9 @@
 
 
 using StdClock = std::chrono::high_resolution_clock;
+template <typename Rep, typename Period>
+constexpr float StdDurationToSeconds(std::chrono::duration<Rep, Period> const &_d)
+{ return std::chrono::duration_cast<std::chrono::duration<float>>(_d).count(); }
 
 namespace sr {
 
@@ -81,13 +86,15 @@ using GLShaderPtr = GLHandle<GLShaderDeleter>;
 using ShaderSources_t = std::vector<char const *>;
 using ShaderBinaries_t = std::vector<GLuint>;
 
-GLShaderPtr CompileFragmentKernel(ShaderSources_t const &_kernel_sources);
+GLShaderPtr CompileFKernel(ShaderSources_t const &_kernel_sources);
 GLShaderPtr CompileShader(GLenum _type, ShaderSources_t &_sources);
 GLProgramPtr LinkProgram(ShaderBinaries_t const &_binaries);
 
 // =============================================================================
 
 
+
+// =============================================================================
 
 struct RenderContext::Impl_
 {
@@ -96,54 +103,80 @@ public:
 	~Impl_();
 
 public:
-	GLProgramPtr shader_program;
-	GLShaderPtr cached_vshader;
-	GLShaderPtr cached_fshader;
-	GLuint dummy_vao;
+	utility::File fkernel_file_;
+public:
+	bool BuildFKernel(std::string const &_sources);
+	GLProgramPtr shader_program_;
+	GLShaderPtr cached_vshader_;
+	GLShaderPtr cached_fshader_;
+public:
+	GLuint dummy_vao_;
 };
 
 RenderContext::Impl_::Impl_() :
-	shader_program{ 0u },
-	cached_vshader{ 0u },
-	cached_fshader{ 0u },
-	dummy_vao{ 0u }
+	fkernel_file_{},
+	shader_program_{ 0u },
+	cached_vshader_{ 0u },
+	cached_fshader_{ 0u },
+	dummy_vao_{ 0u }
 {
 	{
 		static ShaderSources_t vertex_sources{
 			SR_GLSL_VERSION,
 			#include "shaders/fullscreen_tri.vert.h"
 		};
-		cached_vshader = CompileShader(GL_VERTEX_SHADER, vertex_sources);
+		cached_vshader_ = CompileShader(GL_VERTEX_SHADER, vertex_sources);
 
 		static ShaderSources_t const default_fkernel{
 			SR_SL_DUMMY_FKERNEL
 		};
-		cached_fshader = CompileFragmentKernel(default_fkernel);
+		cached_fshader_ = CompileFKernel(default_fkernel);
 
-		assert(cached_vshader);
-		assert(cached_fshader);
+		assert(cached_vshader_);
+		assert(cached_fshader_);
 		ShaderBinaries_t const shader_binaries{
-			cached_vshader,
-			cached_fshader
+			cached_vshader_,
+			cached_fshader_
 		};
-		shader_program = LinkProgram(shader_binaries);
-		assert(shader_program);
+		shader_program_ = LinkProgram(shader_binaries);
+		assert(shader_program_);
 	}
 
 	{
-		glGenVertexArrays(1, &dummy_vao);
+		glGenVertexArrays(1, &dummy_vao_);
 	}
 }
 
 RenderContext::Impl_::~Impl_()
 {
-	glDeleteVertexArrays(1, &dummy_vao);
+	glDeleteVertexArrays(1, &dummy_vao_);
 }
+
+bool
+RenderContext::Impl_::BuildFKernel(std::string const &_sources)
+{
+	ShaderSources_t kernel_sources{ _sources.c_str() };
+	GLShaderPtr compiled_fshader = CompileFKernel(kernel_sources);
+	if (!compiled_fshader) return false;
+
+	assert(cached_vshader_);
+	ShaderBinaries_t const shader_binaries{
+		cached_vshader_,
+		compiled_fshader
+	};
+	GLProgramPtr linked_program = LinkProgram(shader_binaries);
+	if (!linked_program) return false;
+
+	cached_fshader_ = std::move(compiled_fshader);
+	shader_program_ = std::move(linked_program);
+	return true;
+}
+
 
 
 // =============================================================================
 
-GLShaderPtr CompileFragmentKernel(ShaderSources_t const &_kernel_sources)
+GLShaderPtr CompileFKernel(ShaderSources_t const &_kernel_sources)
 {
 	static ShaderSources_t const kKernelPrefix{
 		SR_GLSL_VERSION
@@ -200,11 +233,51 @@ RenderContext::~RenderContext()
 { delete impl_; }
 
 bool
-RenderContext::RenderFrame() const
+RenderContext::RenderFrame()
 {
-	static StdClock::time_point last_render_time = StdClock::now();
-	StdClock::duration delta_time = StdClock::now() - last_render_time;
-	std::cout << std::chrono::duration_cast<std::chrono::duration<float>>(delta_time).count() << std::endl;
+	static StdClock::time_point prev_render_time = StdClock::now();
+	StdClock::duration const delta_time = StdClock::now() - prev_render_time;
+#if 0
+	std::cout << StdDurationToSeconds(delta_time) << std::endl;
+#endif
+
+	{
+		constexpr float kFKernelUpdatePeriod = 1.f;
+		static StdClock::time_point prev_fkernel_update = StdClock::now();
+		static bool prev_frame_had_fkernel_file = false;
+		StdClock::duration const elapsed = StdClock::now() - prev_fkernel_update;
+		if (StdDurationToSeconds(elapsed) > kFKernelUpdatePeriod)
+		{
+			std::cout << "Running fkernel update.." << std::endl;
+			prev_fkernel_update = StdClock::now();
+			bool const fkernel_file_available = impl_->fkernel_file_.Exists();
+#if 0
+			bool const fkernel_file_toggled = prev_frame_had_fkernel_file ^ fkernel_file_available;
+			if (fkernel_file_toggled)
+			{
+				if (prev_frame_had_fkernel_file)
+				{
+					std::cout << "fkernel file vanished" << std::endl;
+					impl_->fkernel_file_ = utility::File{};
+				}
+				prev_frame_had_fkernel_file = !prev_frame_had_fkernel_file;
+			}
+#endif
+			if (fkernel_file_available && impl_->fkernel_file_.HasChanged())
+			{
+				std::cout << "fkernel file changed, building.." << std::endl;
+				impl_->BuildFKernel(impl_->fkernel_file_.ReadAll());
+			}
+			else if (!fkernel_file_available)
+			{
+				std::cout << "fkernel file is either nonexistent, or not a regular file" << std::endl;
+			}
+			else
+			{
+				std::cout << "compiled fkernel is up to date" << std::endl;
+			}
+		}
+	}
 
 	bool start_over = true;
 
@@ -213,8 +286,8 @@ RenderContext::RenderFrame() const
 	static GLfloat const clear_color[]{ 0.5f, 0.5f, 0.5f, 1.f };
 	glClearBufferfv(GL_COLOR, 0, clear_color);
 
-	glUseProgram(impl_->shader_program);
-	glBindVertexArray(impl_->dummy_vao);
+	glUseProgram(impl_->shader_program_);
+	glBindVertexArray(impl_->dummy_vao_);
 
 	glDrawArrays(GL_TRIANGLES, 0, 3);
 	start_over = start_over && (glerror::PrintError(std::cout) == GL_NO_ERROR);
@@ -226,29 +299,17 @@ RenderContext::RenderFrame() const
 	glFlush();
 #endif
 
-	last_render_time += delta_time;
+	prev_render_time += delta_time;
 	return start_over;
 }
 
 
-bool
-RenderContext::LoadFragmentKernel(char const *_sources)
+void
+RenderContext::WatchFKernelFile(char const *_path)
 {
-	ShaderSources_t const kernel_sources{ _sources };
-	GLShaderPtr compiled_fshader = CompileFragmentKernel(kernel_sources);
-	if (!compiled_fshader) return false;
-
-	assert(impl_->cached_vshader);
-	ShaderBinaries_t const shader_binaries{
-		impl_->cached_vshader,
-		compiled_fshader
-	};
-	GLProgramPtr linked_program = LinkProgram(shader_binaries);
-	if (!linked_program) return false;
-
-	impl_->cached_fshader = std::move(compiled_fshader);
-	impl_->shader_program = std::move(linked_program);
-	return true;
+	impl_->fkernel_file_ = utility::File{ _path };
+	if (impl_->fkernel_file_.Exists())
+		impl_->BuildFKernel(impl_->fkernel_file_.ReadAll());
 }
 
 

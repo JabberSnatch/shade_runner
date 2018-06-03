@@ -42,6 +42,7 @@ namespace WXtk {
 template <typename T> void unref_param(T&&) {}
 }
 
+
 struct Win32Handles
 {
 	~Win32Handles()
@@ -192,12 +193,10 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 		}
 
 		sr_context.reset(new sr::RenderContext());
-		sr_context->LoadFragmentKernel(R"__SR_SS__(
-void imageMain(inout vec4 frag_color, vec2 frag_coord) {
-	frag_color.xy = frag_coord / vec2(1280.0, 720.0);
-	frag_color.a = 1.0;
-}
-)__SR_SS__");
+		if (__argc > 1)
+		{
+			sr_context->WatchFKernelFile(__argv[1]);
+		}
 
 		wglMakeCurrent(handles.device_context, NULL);
 	}
