@@ -22,6 +22,7 @@ public:
 
 	bool RenderFrame();
 	void WatchFKernelFile(char const *_path);
+	void SetResolution(int _width, int _height);
 private:
 	struct Impl_;
 	Impl_* impl_;

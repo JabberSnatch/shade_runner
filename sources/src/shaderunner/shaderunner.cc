@@ -10,6 +10,7 @@
 #include "shaderunner/shaderunner.h"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <chrono>
 #include <iostream>
@@ -25,7 +26,8 @@
 #define SR_GLSL_VERSION "#version 330 core\n"
 #define SR_SL_ENTRY_POINT(entry_point) "#define SR_ENTRY_POINT " entry_point "\n"
 #define SR_SL_DUMMY_FKERNEL "void imageMain(inout vec4 frag_color, vec2 frag_coord) { frag_color = vec4(1.0 - float(gl_PrimitiveID), 0.0, 1.0, 1.0); } \n"
-
+#define SR_SL_TIME_UNIFORM "iTime"
+#define SR_SL_RESOLUTION_UNIFORM "iResolution"
 
 using StdClock = std::chrono::high_resolution_clock;
 template <typename Rep, typename Period>
@@ -105,6 +107,8 @@ public:
 public:
 	utility::File fkernel_file_;
 public:
+	std::array<int, 2> resolution_;
+public:
 	bool BuildFKernel(std::string const &_sources);
 	GLProgramPtr shader_program_;
 	GLShaderPtr cached_vshader_;
@@ -179,7 +183,9 @@ RenderContext::Impl_::BuildFKernel(std::string const &_sources)
 GLShaderPtr CompileFKernel(ShaderSources_t const &_kernel_sources)
 {
 	static ShaderSources_t const kKernelPrefix{
-		SR_GLSL_VERSION
+		SR_GLSL_VERSION,
+		"uniform float " SR_SL_TIME_UNIFORM ";\n",
+		"uniform ivec2 " SR_SL_RESOLUTION_UNIFORM ";\n"
 	};
 	static ShaderSources_t const kKernelSuffix{
 		SR_SL_ENTRY_POINT("imageMain"),
@@ -236,7 +242,9 @@ bool
 RenderContext::RenderFrame()
 {
 	static StdClock::time_point prev_render_time = StdClock::now();
+	static StdClock::time_point begin_time = prev_render_time;
 	StdClock::duration const delta_time = StdClock::now() - prev_render_time;
+	float const elapsed_time = StdDurationToSeconds(prev_render_time - begin_time);
 #if 0
 	std::cout << StdDurationToSeconds(delta_time) << std::endl;
 #endif
@@ -251,18 +259,6 @@ RenderContext::RenderFrame()
 			std::cout << "Running fkernel update.." << std::endl;
 			prev_fkernel_update = StdClock::now();
 			bool const fkernel_file_available = impl_->fkernel_file_.Exists();
-#if 0
-			bool const fkernel_file_toggled = prev_frame_had_fkernel_file ^ fkernel_file_available;
-			if (fkernel_file_toggled)
-			{
-				if (prev_frame_had_fkernel_file)
-				{
-					std::cout << "fkernel file vanished" << std::endl;
-					impl_->fkernel_file_ = utility::File{};
-				}
-				prev_frame_had_fkernel_file = !prev_frame_had_fkernel_file;
-			}
-#endif
 			if (fkernel_file_available && impl_->fkernel_file_.HasChanged())
 			{
 				std::cout << "fkernel file changed, building.." << std::endl;
@@ -289,6 +285,22 @@ RenderContext::RenderFrame()
 	glUseProgram(impl_->shader_program_);
 	glBindVertexArray(impl_->dummy_vao_);
 
+	{
+		int const time_loc = glGetUniformLocation(impl_->shader_program_, SR_SL_TIME_UNIFORM);
+		if (time_loc >= 0)
+		{
+			glUniform1f(time_loc, elapsed_time);
+		}
+		glerror::PrintError(std::cout);
+	}
+	{
+		int const resolution_loc = glGetUniformLocation(impl_->shader_program_, SR_SL_RESOLUTION_UNIFORM);
+		if (resolution_loc >= 0)
+		{
+			glUniform2iv(resolution_loc, 1, &(impl_->resolution_[0]));
+		}
+	}
+
 	glDrawArrays(GL_TRIANGLES, 0, 3);
 	start_over = start_over && (glerror::PrintError(std::cout) == GL_NO_ERROR);
 
@@ -310,6 +322,14 @@ RenderContext::WatchFKernelFile(char const *_path)
 	impl_->fkernel_file_ = utility::File{ _path };
 	if (impl_->fkernel_file_.Exists())
 		impl_->BuildFKernel(impl_->fkernel_file_.ReadAll());
+}
+
+
+void
+RenderContext::SetResolution(int _width, int _height)
+{
+	impl_->resolution_ = { _width, _height };
+	glViewport(0, 0, _width, _height);
 }
 
 

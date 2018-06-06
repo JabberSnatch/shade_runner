@@ -78,6 +78,9 @@ LRESULT CALLBACK WndProc(_In_ HWND   hwnd,
 static char const *wnd_class_name = "ShadeRunnerMainWindow";
 static char const *wnd_title = "ShadeRunner";
 
+constexpr int boot_width = 1280;
+constexpr int boot_height = 720;
+
 Win32Handles handles{};
 std::unique_ptr<sr::RenderContext> sr_context{};
 
@@ -108,12 +111,19 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 	}
 
 	{
-		handles.hWnd = CreateWindow(
+		RECT canvas_rect = { 0, 0, boot_width, boot_height };
+		DWORD const style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
+		AdjustWindowRect(&canvas_rect, style, FALSE);
+		int const width = canvas_rect.right - canvas_rect.left;
+		int const height = canvas_rect.bottom - canvas_rect.top;
+
+		handles.hWnd = CreateWindowEx(
+			NULL,
 			static_cast<LPCTSTR>(wnd_class_name),
 			static_cast<LPCTSTR>(wnd_title),
-			WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+			style,
 			CW_USEDEFAULT, CW_USEDEFAULT,
-			1280, 720,
+			width, height,
 			NULL,
 			NULL,
 			hInstance,
@@ -197,6 +207,7 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 		{
 			sr_context->WatchFKernelFile(__argv[1]);
 		}
+		sr_context->SetResolution(boot_width, boot_height);
 
 		wglMakeCurrent(handles.device_context, NULL);
 	}
@@ -232,6 +243,17 @@ LRESULT CALLBACK WndProc(_In_ HWND   hwnd,
 		}
 		::SwapBuffers(handles.device_context);
 		wglMakeCurrent(handles.device_context, NULL);
+	} break;
+	case WM_SIZE:
+	{
+		int width = LOWORD(lParam);
+		int height = HIWORD(lParam);
+		if (sr_context)
+		{
+			wglMakeCurrent(handles.device_context, handles.gl_context);
+			sr_context->SetResolution(width, height);
+			wglMakeCurrent(handles.device_context, NULL);
+		}
 	} break;
 	case WM_DESTROY:
 		PostQuitMessage(0);
