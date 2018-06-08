@@ -12,7 +12,4 @@ void imageMain(inout vec4 frag_color, vec2 frag_coord) {
 	vec2 uv = frag_coord / vec2(iResolution);
 	vec2 position = uv * 2.0 - vec2(1.0);
 	frag_color = vec4(vec2(1.0 - length(position)) * (sin(iTime) + 1.0), 0.0, 1.0);
-	frag_color.xy = uv;
-	if (length(position) < 1.0)
-	   frag_color = vec4(1.0) - frag_color;
 }

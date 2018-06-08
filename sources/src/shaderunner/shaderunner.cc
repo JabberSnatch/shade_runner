@@ -107,7 +107,7 @@ public:
 public:
 	utility::File fkernel_file_;
 public:
-	std::array<int, 2> resolution_;
+	std::array<float, 2> resolution_;
 public:
 	bool BuildFKernel(std::string const &_sources);
 	GLProgramPtr shader_program_;
@@ -185,9 +185,10 @@ GLShaderPtr CompileFKernel(ShaderSources_t const &_kernel_sources)
 	static ShaderSources_t const kKernelPrefix{
 		SR_GLSL_VERSION,
 		"uniform float " SR_SL_TIME_UNIFORM ";\n",
-		"uniform ivec2 " SR_SL_RESOLUTION_UNIFORM ";\n"
+		"uniform vec2 " SR_SL_RESOLUTION_UNIFORM ";\n"
 	};
 	static ShaderSources_t const kKernelSuffix{
+		"\n",
 		SR_SL_ENTRY_POINT("imageMain"),
 		#include "shaders/entry_point.frag.h"
 	};
@@ -256,7 +257,9 @@ RenderContext::RenderFrame()
 		StdClock::duration const elapsed = StdClock::now() - prev_fkernel_update;
 		if (StdDurationToSeconds(elapsed) > kFKernelUpdatePeriod)
 		{
+#if 0
 			std::cout << "Running fkernel update.." << std::endl;
+#endif
 			prev_fkernel_update = StdClock::now();
 			bool const fkernel_file_available = impl_->fkernel_file_.Exists();
 			if (fkernel_file_available && impl_->fkernel_file_.HasChanged())
@@ -270,7 +273,9 @@ RenderContext::RenderFrame()
 			}
 			else
 			{
+#if 0
 				std::cout << "compiled fkernel is up to date" << std::endl;
+#endif
 			}
 		}
 	}
@@ -297,8 +302,9 @@ RenderContext::RenderFrame()
 		int const resolution_loc = glGetUniformLocation(impl_->shader_program_, SR_SL_RESOLUTION_UNIFORM);
 		if (resolution_loc >= 0)
 		{
-			glUniform2iv(resolution_loc, 1, &(impl_->resolution_[0]));
+			glUniform2fv(resolution_loc, 1, &(impl_->resolution_[0]));
 		}
+		glerror::PrintError(std::cout);
 	}
 
 	glDrawArrays(GL_TRIANGLES, 0, 3);
@@ -328,7 +334,8 @@ RenderContext::WatchFKernelFile(char const *_path)
 void
 RenderContext::SetResolution(int _width, int _height)
 {
-	impl_->resolution_ = { _width, _height };
+	impl_->resolution_ = { boost::numeric_cast<float>(_width),
+						   boost::numeric_cast<float>(_height) };
 	glViewport(0, 0, _width, _height);
 }
 
