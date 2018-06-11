@@ -1,3 +1,11 @@
+float rand(float n){return fract(sin(n) * 43758.5453123);}
+
+float rand(vec2 n)
+{
+	return fract(sin(dot(n, vec2(12.9898, 4.1414))) * 43758.5453);
+}
+
+
 vec2 NDC(vec2 frag_coord)
 {
 	return (frag_coord / iResolution) * 2.0 - 1.0;
@@ -16,12 +24,18 @@ float udRoundBox(vec3 p, vec3 b, float r)
 	return length(max(abs(p)-b, 0.0))-r;
 }
 
+float sdSphere(vec3 p, float r)
+{
+	return length(p) - r;
+}
+
 float udRoundSegment(vec3 p, vec3 start, vec3 end, float r)
 {
 	vec3 extent = (end - start) * 0.5;
 	vec3 center = (end + start) * 0.5;
 	return udRoundBox(p - center, extent, r);
 }
+
 
 float object(vec3 p, float r)
 {
@@ -33,12 +47,68 @@ float object(vec3 p, float r)
 	return distance;
 }
 
+float rand_object(vec3 p, float rand_seed)
+{
+	float points[3] = float[3](0.18, 0.5, 0.82);
+	float radius = 0.11;
+	float segment_p = 0.5;
+
+	float rand_state = rand_seed;
+	float distance = 1. / 0.;
+	for (int i = 0; i < 3; ++i)
+	{
+		for (int j = 0; j < 3; ++j)
+		{
+			distance = min(distance, sdSphere(p - vec3(points[i], points[j], 0.0), radius));
+		}
+	}
+	for (int i = 0; i < 6; ++i)
+	{
+		if (rand_state <= segment_p)
+		{
+			float constant_point = points[i/2];
+			int start_index = int(mod(float(i), 2.0));
+			vec2 start = vec2(points[start_index], constant_point);
+			vec2 end = vec2(points[start_index + 1], constant_point);
+			distance = min(distance, udRoundSegment(p, vec3(start, 0.0), vec3(end, 0.0), radius));
+		}
+		rand_state = rand(rand_state);
+	}
+	for (int i = 0; i < 6; ++i)
+	{
+		if (rand_state >= segment_p)
+		{
+			float constant_point = points[i/2];
+			int start_index = int(mod(float(i), 2.0));
+			vec2 start = vec2(constant_point, points[start_index]);
+			vec2 end = vec2(constant_point, points[start_index + 1]);
+			distance = min(distance, udRoundSegment(p, vec3(start, 0.0), vec3(end, 0.0), radius));
+		}
+		rand_state = rand(rand_state);
+	}
+	return distance;
+}
+
 void imageMain(inout vec4 frag_color, vec2 frag_coord)
 {
+	float scale = 15.0;
+
 	vec2 local_coord = VerticalAspectCoordinates(frag_coord);
-	vec3 world_position = vec3(local_coord * 10.0 + vec2(0.5), 0.0);
+	vec3 world_position = vec3(local_coord * scale + vec2(0.5), 0.0) + vec3(vec2(iTime), 0.0);
+	vec3 floor_wp = floor(world_position);
+
 	float distance = 1.0;
-	distance = object(fract(-(world_position).xyz), 0.09);
-	float intensity = sin(iTime - length(floor(world_position)));
-	frag_color = vec4(max(0.0, -distance * 20.0) * intensity);
+	distance = rand_object(fract(world_position.xyz), rand(floor_wp.xy));
+
+	float intensity = sin((iTime + rand(floor_wp.xy) * 4.0) * (rand(floor_wp.yx) + 0.5));
+#if 1
+	intensity = max(0.0, -distance * 15.0) * intensity;
+#else
+	if (distance > 0.0)
+	{
+		intensity = 0.0;
+	}
+#endif
+
+	frag_color = vec4(vec3(0.67, 0.65, 0.42) * intensity, 1.0);
 }
