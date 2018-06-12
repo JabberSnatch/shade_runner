@@ -64,25 +64,17 @@ float rand_object(vec3 p, float rand_seed)
 	}
 	for (int i = 0; i < 6; ++i)
 	{
-		if (rand_state <= segment_p)
+		float constant_point = points[i/2];
+		int start_index = int(mod(float(i), 2.0));
+		vec2 start = vec2(points[start_index], constant_point);
+		vec2 end = vec2(points[start_index + 1], constant_point);
+		if (rand_state < segment_p)
 		{
-			float constant_point = points[i/2];
-			int start_index = int(mod(float(i), 2.0));
-			vec2 start = vec2(points[start_index], constant_point);
-			vec2 end = vec2(points[start_index + 1], constant_point);
 			distance = min(distance, udRoundSegment(p, vec3(start, 0.0), vec3(end, 0.0), radius));
 		}
-		rand_state = rand(rand_state);
-	}
-	for (int i = 0; i < 6; ++i)
-	{
-		if (rand_state >= segment_p)
+		else if (rand_state > segment_p)
 		{
-			float constant_point = points[i/2];
-			int start_index = int(mod(float(i), 2.0));
-			vec2 start = vec2(constant_point, points[start_index]);
-			vec2 end = vec2(constant_point, points[start_index + 1]);
-			distance = min(distance, udRoundSegment(p, vec3(start, 0.0), vec3(end, 0.0), radius));
+			distance = min(distance, udRoundSegment(p, vec3(start.yx, 0.0), vec3(end.yx, 0.0), radius));
 		}
 		rand_state = rand(rand_state);
 	}
@@ -92,6 +84,8 @@ float rand_object(vec3 p, float rand_seed)
 void imageMain(inout vec4 frag_color, vec2 frag_coord)
 {
 	float scale = 15.0;
+	vec3 glyph_color = vec3(0.67, 0.65, 0.42);
+	vec3 background_color = vec3(0.05, 0.04, 0.03);
 
 	vec2 local_coord = VerticalAspectCoordinates(frag_coord);
 	vec3 world_position = vec3(local_coord * scale + vec2(0.5), 0.0) + vec3(vec2(iTime), 0.0);
@@ -110,5 +104,6 @@ void imageMain(inout vec4 frag_color, vec2 frag_coord)
 	}
 #endif
 
-	frag_color = vec4(vec3(0.67, 0.65, 0.42) * intensity, 1.0);
+	intensity = clamp(intensity, 0.0, 1.0);
+	frag_color = vec4(mix(abs(distance) * background_color * 20.0, glyph_color, intensity), 1.0);
 }
