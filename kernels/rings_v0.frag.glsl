@@ -28,46 +28,71 @@ vec2 VerticalAspectCoordinates(vec2 frag_coord)
 	return ndc * aspect_factor;
 }
 
+vec2 PixelAspectCoordinates(vec2 frag_coord, float pixel_count)
+{
+	vec2 ndc = NDC(frag_coord);
+	float pixel_factor = iResolution.y * 0.5 / pixel_count;
+	vec2 aspect_factor = vec2(iResolution.x / iResolution.y, 1.0) * pixel_factor;
+	return ndc * aspect_factor;
+}
 
 void imageMain(inout vec4 frag_color, vec2 frag_coord)
 {
+#if 1
 	vec2 p = VerticalAspectCoordinates(frag_coord);
-
-	float time_sine = sin(iTime) * 0.5 + 0.5;
-
 	float scale = 4.0;
-	float cutoff_size = 0.9 / scale;
-	vec2 center = p / scale;
+	p *= scale;
+#else
+	vec2 p = PixelAspectCoordinates(frag_coord, 75.0);
+#endif
 
-	vec2 local_p = p - center;
-	float raw_length = length(local_p);
-	float distance = (raw_length - iTime * 0.5) * scale * 3.0;
-	float eye_radius = 0.1 / scale;
+	p += vec2(0.5);
+
+	float local_rand = rand(floor(p));
+	vec2 local_center = (floor(p) + vec2(0.5));
+	vec2 local_p = p - local_center;
+	vec2 ring_center = local_center + vec2(sin(iTime) * 0.1, cos(iTime*2.0) * 0.3);
+	vec2 ring_p = p - ring_center;
+	float raw_length = length(ring_p);
+	float distance = (raw_length - iTime * 0.8 - length(floor(p)) * 0.2);
+	float eye_radius = 0.07;
 	float eye_region = 1.0 - step(eye_radius, raw_length);
 
-	float radius = floor(distance);
+	distance *= 6.0;
+
+	float ring_index = floor(distance);
 	float rotation_speed_bound = 1.0;
-	float segment_count = 6.0;
-	float angle = (atan(local_p.x, local_p.y) / kPi) * 0.5 + 0.5;
+	float segment_count = 3.0;
+	float angle = (atan(ring_p.x, ring_p.y) / kPi) * 0.5 + 0.5;
 	angle *= segment_count;
-	angle += iTime * mix(-rotation_speed_bound, rotation_speed_bound, rand(vec2(radius, 0.2)));
+	angle += iTime * mix(-rotation_speed_bound, rotation_speed_bound, rand(vec2(ring_index, 0.2)));
 
 	float r = step(0.2, fract(distance));
-	float threshold = 1.0 - (time_sine * 0.35 + 0.15);
+	float time_sine = sin(iTime * 3.0) * 0.5 + 0.5;
+	float threshold = 1.0 - (time_sine * 0.2 + 0.2);
 	float theta = max(
 		  step(threshold, fract(angle)),
 		  step(threshold, 1.0 - fract(angle))
 	);
 
-	float ring_index = floor(distance);
-	float hue = fract(ring_index * 31.0 / 13.0);
-	vec3 ring_color = HSLtoRGB(vec3(hue, 1.0, 0.5));
-	ring_color *= r * theta * fract(distance) * (1.0 - eye_region);
-	vec3 eye_color = vec3(1.0) * mix(0.0, 1.0, raw_length / eye_radius) * eye_region;
+	float hue = fract((ring_index * 2.0 / 7.0));
+	vec3 ring_color = HSLtoRGB(vec3(hue, 0.8, 0.5));
+	ring_color *= r * theta * clamp(log(raw_length * 10.0), 0.0, 1.0);
+	vec3 eye_color = vec3(1.0) * mix(1.0, 0.2, raw_length / eye_radius);
 
 	frag_color = vec4(
-			   ring_color + eye_color,
+			   mix(ring_color, eye_color, eye_region),
 			   1.0
 	);
-	frag_color *= 1.0 - max(step(cutoff_size, abs(local_p.x)), step(cutoff_size, abs(local_p.y)));
+
+#if 1
+	float cutoff_size = 0.47;
+	float cutoff_radius = 0.15;
+	float cutoff_factor = 1.0 - max(max(
+		  step(cutoff_size, abs(local_p.x)),
+		  step(cutoff_size, abs(local_p.y))),
+		  step(cutoff_radius, length(abs(local_p)) - cutoff_size)
+	);
+	frag_color = mix(vec4(0.12, 0.1, 0.04, 1.0) * 8.0, frag_color, cutoff_factor);
+#endif
 }
