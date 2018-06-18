@@ -91,10 +91,11 @@ void imageMain(inout vec4 frag_color, vec2 frag_coord)
 	vec3 world_position = vec3(local_coord * scale + vec2(0.5), 0.0) + vec3(vec2(iTime), 0.0);
 	vec3 floor_wp = floor(world_position);
 
-	float distance = 1.0;
-	distance = rand_object(fract(world_position.xyz), rand(floor_wp.xy));
-
 	float intensity = sin((iTime + rand(floor_wp.xy) * 4.0) * (rand(floor_wp.yx) + 0.5));
+	float distance = 1.0;
+	distance = rand_object(fract(world_position.xyz), rand(floor_wp.xy + floor(iTime * 0.2 + rand(floor_wp.yx))));
+
+#if 0
 #if 1
 	intensity = max(0.0, -distance * 15.0) * intensity;
 #else
@@ -103,7 +104,15 @@ void imageMain(inout vec4 frag_color, vec2 frag_coord)
 		intensity = 0.0;
 	}
 #endif
-
 	intensity = clamp(intensity, 0.0, 1.0);
 	frag_color = vec4(mix(abs(distance) * background_color * 20.0, glyph_color, intensity), 1.0);
+#else
+	intensity = clamp(intensity, 0.0, 1.0);
+
+	float pixel_size = scale * (2.0 / iResolution.y);
+	float blur_radius = pixel_size;
+	float shape_alpha = clamp(-distance / blur_radius, 0.0, 1.0);
+
+	frag_color = vec4(mix(abs(distance) * background_color * 20.0, glyph_color, shape_alpha * intensity), 1.0);
+#endif
 }
