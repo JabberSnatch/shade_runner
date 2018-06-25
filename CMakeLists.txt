@@ -12,6 +12,7 @@ set(LIB_DIR lib)
 set( LIB_INCLUDE_DIR
 	 ${LIB_DIR}/glew/include/
 	 ${LIB_DIR}/boost/
+	 ${LIB_DIR}/imgui/
 	 )
 
 function(_FIND_GL_LIBRARIES OUT)
@@ -19,6 +20,19 @@ function(_FIND_GL_LIBRARIES OUT)
 	find_library(GLEW_LIB glew32 PATHS ${LIB_DIR}/glew/lib/Release/x64/)
 	set(${OUT} "${GLEW_LIB}" ${OPENGL_gl_LIBRARY} PARENT_SCOPE)
 endfunction()
+
+# ==============================================================================
+
+set(IMGUI_DIR ${LIB_DIR}/imgui)
+set( IMGUI_SOURCES
+	 ${IMGUI_DIR}/imgui.cpp
+	 ${IMGUI_DIR}/imgui_demo.cpp
+	 ${IMGUI_DIR}/imgui_draw.cpp
+	 )
+
+project(imgui)
+include_directories(${IMGUI_DIR})
+add_library(imgui STATIC ${IMGUI_SOURCES})
 
 # ==============================================================================
 
@@ -70,6 +84,7 @@ target_link_libraries( shaderunner
 					   PRIVATE
 					   "${GL_LIBRARIES}"
 					   utility
+					   imgui
 					   )
 
 # ______________________________________________________________________________
@@ -83,6 +98,7 @@ target_link_libraries( win32_bootstrap
 					   PRIVATE
 					   "${GL_LIBRARIES}"
 					   shaderunner
+					   imgui
 					   )
 
 add_custom_command( TARGET win32_bootstrap POST_BUILD

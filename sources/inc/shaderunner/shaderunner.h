@@ -11,7 +11,6 @@
 #ifndef __YS_SHADERUNNER_HPP__
 #define __YS_SHADERUNNER_HPP__
 
-
 namespace sr {
 
 class RenderContext

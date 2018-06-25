@@ -33,6 +33,7 @@
 #include <memory>
 
 #include <boost/numeric/conversion/cast.hpp>
+#include <imgui.h>
 #include <GL/glew.h>
 #include <GL/wglew.h>
 
@@ -180,37 +181,37 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 			{
 				wglMakeCurrent(NULL, NULL);
 				wglDeleteContext(old_context);
-				wglMakeCurrent(handles.device_context, handles.gl_context);
 			}
 			else
 			{
-				std::cout << "wglCreateContext failed" << std::endl;
+				std::cout << "wglCreateContext failed, execution aborted" << std::endl;
+				return 1;
 			}
 		}
-
-		std::cout << "GL init complete : " << std::endl;
-		std::cout << "OpenGL version : " << glGetString(GL_VERSION) << std::endl;
-		std::cout << "Manufacturer : " << glGetString(GL_VENDOR) << std::endl;
-		std::cout << "Drivers : " << glGetString(GL_RENDERER) << std::endl;
-
-		if (wglSwapIntervalEXT(1))
-		{
-			std::cout << "Vsync enabled" << std::endl;
-		}
-		else
-		{
-			std::cout << "Could not enable Vsync" << std::endl;
-		}
-
-		sr_context.reset(new sr::RenderContext());
-		if (__argc > 1)
-		{
-			sr_context->WatchFKernelFile(__argv[1]);
-		}
-		sr_context->SetResolution(boot_width, boot_height);
-
-		wglMakeCurrent(handles.device_context, NULL);
 	}
+
+
+	wglMakeCurrent(handles.device_context, handles.gl_context);
+	std::cout << "GL init complete : " << std::endl;
+	std::cout << "OpenGL version : " << glGetString(GL_VERSION) << std::endl;
+	std::cout << "Manufacturer : " << glGetString(GL_VENDOR) << std::endl;
+	std::cout << "Drivers : " << glGetString(GL_RENDERER) << std::endl;
+	if (wglSwapIntervalEXT(1))
+	{
+		std::cout << "Vsync enabled" << std::endl;
+	}
+	else
+	{
+		std::cout << "Could not enable Vsync" << std::endl;
+	}
+
+	sr_context.reset(new sr::RenderContext());
+	if (__argc > 1)
+	{
+		sr_context->WatchFKernelFile(__argv[1]);
+	}
+	sr_context->SetResolution(boot_width, boot_height);
+	wglMakeCurrent(handles.device_context, NULL);
 
 	MSG msg{ 0 };
 	while(GetMessage(&msg, NULL, 0, 0))
@@ -218,6 +219,10 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
 	}
+
+	wglMakeCurrent(handles.device_context, handles.gl_context);
+	sr_context.reset(nullptr);
+	wglMakeCurrent(handles.device_context, NULL);
 
 	return static_cast<int>(msg.wParam);
 }
@@ -233,6 +238,10 @@ LRESULT CALLBACK WndProc(_In_ HWND   hwnd,
 	{
 	case WM_PAINT:
 	{
+		ImGui::NewFrame();
+		ImGui::Text("Hello World !");
+		ImGui::Render();
+
 		assert(handles.device_context);
 		assert(handles.gl_context);
 		assert(sr_context);
