@@ -11,6 +11,7 @@
 #pragma warning(disable : 4668) // (Wall) C4668 : undefined macro replaced with 0 for #if/#elif
 #include <windows.h>
 #pragma warning(pop)
+#include <windowsx.h>
 
 #pragma warning(push)
 // (Wall) C4514 : unreferenced inline function was removed
@@ -69,6 +70,10 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 					 _In_ HINSTANCE hPrevInstance,
 					 _In_ LPSTR     lpCmdLine,
 					 _In_ int       nCmdShow);
+LRESULT CALLBACK MinimalWndProc(_In_ HWND   hwnd,
+								_In_ UINT   uMsg,
+								_In_ WPARAM wParam,
+								_In_ LPARAM lParam);
 LRESULT CALLBACK WndProc(_In_ HWND   hwnd,
 						 _In_ UINT   uMsg,
 						 _In_ WPARAM wParam,
@@ -96,7 +101,7 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 
 	WNDCLASS wc{ 0 };
 	wc.style = CS_OWNDC;
-	wc.lpfnWndProc = static_cast<WNDPROC>(WndProc);
+	wc.lpfnWndProc = static_cast<WNDPROC>(MinimalWndProc);
 	wc.cbClsExtra = 0;
 	wc.cbWndExtra = 0;
 	wc.hInstance = hInstance;
@@ -213,6 +218,8 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 	sr_context->SetResolution(boot_width, boot_height);
 	wglMakeCurrent(handles.device_context, NULL);
 
+	SetWindowLongPtr(handles.hWnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(&WndProc));
+
 	MSG msg{ 0 };
 	while(GetMessage(&msg, NULL, 0, 0))
 	{
@@ -225,6 +232,27 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 	wglMakeCurrent(handles.device_context, NULL);
 
 	return static_cast<int>(msg.wParam);
+}
+
+
+LRESULT CALLBACK MinimalWndProc(_In_ HWND   hwnd,
+								_In_ UINT   uMsg,
+								_In_ WPARAM wParam,
+								_In_ LPARAM lParam)
+{
+	LRESULT result = 1;
+
+	switch(uMsg)
+	{
+	case WM_DESTROY:
+		PostQuitMessage(0);
+		break;
+	default:
+		result = DefWindowProc(hwnd, uMsg, wParam, lParam);
+		break;
+	}
+
+	return result;
 }
 
 LRESULT CALLBACK WndProc(_In_ HWND   hwnd,
@@ -264,11 +292,19 @@ LRESULT CALLBACK WndProc(_In_ HWND   hwnd,
 			wglMakeCurrent(handles.device_context, NULL);
 		}
 	} break;
-	case WM_DESTROY:
-		PostQuitMessage(0);
-		break;
+	case WM_MOUSEMOVE:
+	{
+		ImGuiIO &io = ImGui::GetIO();
+		int const pos_x = GET_X_LPARAM(lParam);
+		int const pos_y = GET_Y_LPARAM(lParam);
+		io.MousePos = ImVec2(boost::numeric_cast<float>(pos_x),
+							 boost::numeric_cast<float>(pos_y));
+		io.MouseDown[0] = (wParam & MK_LBUTTON) != 0u;
+		io.MouseDown[1] = (wParam & MK_RBUTTON) != 0u;
+		io.MouseDown[2] = (wParam & MK_MBUTTON) != 0u;
+	} break;
 	default:
-		result = DefWindowProc(hwnd, uMsg, wParam, lParam);
+		result = CallWindowProc(MinimalWndProc, hwnd, uMsg, wParam, lParam);
 		break;
 	}
 
