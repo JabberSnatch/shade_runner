@@ -595,6 +595,14 @@ RenderContext::SetResolution(int _width, int _height)
 }
 
 
+std::string const &
+RenderContext::GetFKernelPath() const
+{
+	return impl_->fkernel_file_.path();
+}
+
+
+
 // =============================================================================
 
 namespace glerror {

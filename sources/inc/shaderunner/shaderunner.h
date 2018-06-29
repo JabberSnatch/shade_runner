@@ -11,6 +11,8 @@
 #ifndef __YS_SHADERUNNER_HPP__
 #define __YS_SHADERUNNER_HPP__
 
+#include <string>
+
 namespace sr {
 
 class RenderContext
@@ -22,6 +24,8 @@ public:
 	bool RenderFrame();
 	void WatchFKernelFile(char const *_path);
 	void SetResolution(int _width, int _height);
+public:
+	std::string const &GetFKernelPath() const;
 private:
 	struct Impl_;
 	Impl_* impl_;

@@ -26,6 +26,8 @@ public:
 	bool Exists() const;
 	std::string ReadAll();
 	bool HasChanged() const;
+public:
+	std::string const &path() const { return path_; }
 private:
 	std::string path_ = "";
 	std::time_t read_time_ = static_cast<std::time_t>(0);

@@ -7,6 +7,8 @@
  * ----------------------------------------------------------------------------
  */
 
+#define _SCL_SECURE_NO_WARNINGS
+
 #pragma warning(push)
 #pragma warning(disable : 4668) // (Wall) C4668 : undefined macro replaced with 0 for #if/#elif
 #include <windows.h>
@@ -30,6 +32,7 @@
 #include <iostream>
 #pragma warning(pop)
 
+#include <algorithm>
 #include <cassert>
 #include <memory>
 
@@ -292,22 +295,70 @@ LRESULT CALLBACK WndProc(_In_ HWND   hwnd,
 	{
 	case WM_PAINT:
 	{
+		assert(handles.device_context);
+		assert(handles.gl_context);
+		assert(sr_context);
+
 		io.KeyCtrl = (::GetKeyState(VK_CONTROL) & 0x8000) != 0;
 		io.KeyShift = (::GetKeyState(VK_SHIFT) & 0x8000) != 0;
 		io.KeyAlt = (::GetKeyState(VK_MENU) & 0x8000) != 0;
 		io.KeySuper = false;
 
+		{
+			ImGuiStyle &style = ImGui::GetStyle();
+			style.FrameRounding = 0.f;
+			style.WindowRounding = 1.f;
+			style.ScrollbarRounding = 0.f;
+			style.GrabRounding = 2.f;
+		}
+
+		constexpr int kTextBufferSize = 512;
+		static bool show_demo_window = false;
+		static bool show_file_selection_window = true;
+		static char fkernel_path_buffer[kTextBufferSize] = "";
 		ImGui::NewFrame();
-		static bool open = true;
-		if (open)
-			ImGui::ShowDemoWindow(&open);
+		if (ImGui::BeginMainMenuBar())
+		{
+			if (ImGui::BeginMenu("Windows"))
+			{
+				ImGui::MenuItem("Demo", nullptr, &show_demo_window);
+				if (ImGui::MenuItem("File Selection", nullptr, &show_file_selection_window) && false)
+				{
+					std::string const &fkernel_path = sr_context->GetFKernelPath();
+					assert(fkernel_path.size() <= kTextBufferSize);
+					std::copy(fkernel_path.cbegin(), fkernel_path.cend(), &fkernel_path_buffer[0]);
+				}
+				ImGui::EndMenu();
+			}
+			ImGui::EndMainMenuBar();
+		}
+		if (show_demo_window)
+			ImGui::ShowDemoWindow(&show_demo_window);
+		if (show_file_selection_window)
+		{
+			if (ImGui::Begin("File Selection", &show_file_selection_window, 0))
+			{
+				std::string const &fkernel_path = sr_context->GetFKernelPath();
+				assert(fkernel_path.size() <= kTextBufferSize);
+				std::copy(fkernel_path.cbegin(), fkernel_path.cend(), &fkernel_path_buffer[0]);
+				bool const state = ImGui::InputText("Path",
+													fkernel_path_buffer,
+													kTextBufferSize,
+													ImGuiInputTextFlags_EnterReturnsTrue);
+				if (state)
+				{
+					std::cout << "imgui input received" << std::endl;
+					wglMakeCurrent(handles.device_context, handles.gl_context);
+					sr_context->WatchFKernelFile(fkernel_path_buffer);
+					wglMakeCurrent(handles.device_context, NULL);
+				}
+			}
+			ImGui::End();
+		}
 
 		ImGui::EndFrame();
 		ImGui::Render();
 
-		assert(handles.device_context);
-		assert(handles.gl_context);
-		assert(sr_context);
 		wglMakeCurrent(handles.device_context, handles.gl_context);
 		if (!sr_context->RenderFrame())
 		{
@@ -371,16 +422,19 @@ LRESULT CALLBACK WndProc(_In_ HWND   hwnd,
     case WM_SYSKEYDOWN:
         if (wParam < 256)
             io.KeysDown[wParam] = 1;
+		result = CallWindowProc(MinimalWndProc, hwnd, uMsg, wParam, lParam);
 		break;
     case WM_KEYUP:
     case WM_SYSKEYUP:
         if (wParam < 256)
             io.KeysDown[wParam] = 0;
+		result = CallWindowProc(MinimalWndProc, hwnd, uMsg, wParam, lParam);
 		break;
     case WM_CHAR:
         // You can also use ToAscii()+GetKeyboardState() to retrieve characters.
         if (wParam > 0 && wParam < 0x10000)
             io.AddInputCharacter((unsigned short)wParam);
+		result = CallWindowProc(MinimalWndProc, hwnd, uMsg, wParam, lParam);
 		break;
 	default:
 		result = CallWindowProc(MinimalWndProc, hwnd, uMsg, wParam, lParam);
