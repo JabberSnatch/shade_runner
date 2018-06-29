@@ -218,6 +218,31 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 	sr_context->SetResolution(boot_width, boot_height);
 	wglMakeCurrent(handles.device_context, NULL);
 
+	{
+		ImGuiIO &io = ImGui::GetIO();
+		io.KeyMap[ImGuiKey_Tab] = VK_TAB;
+		io.KeyMap[ImGuiKey_LeftArrow] = VK_LEFT;
+		io.KeyMap[ImGuiKey_RightArrow] = VK_RIGHT;
+		io.KeyMap[ImGuiKey_UpArrow] = VK_UP;
+		io.KeyMap[ImGuiKey_DownArrow] = VK_DOWN;
+		io.KeyMap[ImGuiKey_PageUp] = VK_PRIOR;
+		io.KeyMap[ImGuiKey_PageDown] = VK_NEXT;
+		io.KeyMap[ImGuiKey_Home] = VK_HOME;
+		io.KeyMap[ImGuiKey_End] = VK_END;
+		io.KeyMap[ImGuiKey_Insert] = VK_INSERT;
+		io.KeyMap[ImGuiKey_Delete] = VK_DELETE;
+		io.KeyMap[ImGuiKey_Backspace] = VK_BACK;
+		io.KeyMap[ImGuiKey_Space] = VK_SPACE;
+		io.KeyMap[ImGuiKey_Enter] = VK_RETURN;
+		io.KeyMap[ImGuiKey_Escape] = VK_ESCAPE;
+		io.KeyMap[ImGuiKey_A] = 'A';
+		io.KeyMap[ImGuiKey_C] = 'C';
+		io.KeyMap[ImGuiKey_V] = 'V';
+		io.KeyMap[ImGuiKey_X] = 'X';
+		io.KeyMap[ImGuiKey_Y] = 'Y';
+		io.KeyMap[ImGuiKey_Z] = 'Z';
+	}
+
 	SetWindowLongPtr(handles.hWnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(&WndProc));
 
 	MSG msg{ 0 };
@@ -261,13 +286,23 @@ LRESULT CALLBACK WndProc(_In_ HWND   hwnd,
 						 _In_ LPARAM lParam)
 {
 	LRESULT result = 1;
+	ImGuiIO &io = ImGui::GetIO();
 
 	switch(uMsg)
 	{
 	case WM_PAINT:
 	{
+		io.KeyCtrl = (::GetKeyState(VK_CONTROL) & 0x8000) != 0;
+		io.KeyShift = (::GetKeyState(VK_SHIFT) & 0x8000) != 0;
+		io.KeyAlt = (::GetKeyState(VK_MENU) & 0x8000) != 0;
+		io.KeySuper = false;
+
 		ImGui::NewFrame();
-		ImGui::Text("Hello World !");
+		static bool open = true;
+		if (open)
+			ImGui::ShowDemoWindow(&open);
+
+		ImGui::EndFrame();
 		ImGui::Render();
 
 		assert(handles.device_context);
@@ -292,9 +327,32 @@ LRESULT CALLBACK WndProc(_In_ HWND   hwnd,
 			wglMakeCurrent(handles.device_context, NULL);
 		}
 	} break;
+    case WM_LBUTTONDOWN: case WM_LBUTTONDBLCLK:
+    case WM_RBUTTONDOWN: case WM_RBUTTONDBLCLK:
+    case WM_MBUTTONDOWN: case WM_MBUTTONDBLCLK:
+    {
+        int button = 0;
+        if (uMsg == WM_LBUTTONDOWN || uMsg == WM_LBUTTONDBLCLK) button = 0;
+        if (uMsg == WM_RBUTTONDOWN || uMsg == WM_RBUTTONDBLCLK) button = 1;
+        if (uMsg == WM_MBUTTONDOWN || uMsg == WM_MBUTTONDBLCLK) button = 2;
+        if (!ImGui::IsAnyMouseDown() && ::GetCapture() == NULL)
+            ::SetCapture(hwnd);
+        io.MouseDown[button] = true;
+    } break;
+    case WM_LBUTTONUP:
+    case WM_RBUTTONUP:
+    case WM_MBUTTONUP:
+    {
+        int button = 0;
+        if (uMsg == WM_LBUTTONUP) button = 0;
+        if (uMsg == WM_RBUTTONUP) button = 1;
+        if (uMsg == WM_MBUTTONUP) button = 2;
+        io.MouseDown[button] = false;
+        if (!ImGui::IsAnyMouseDown() && ::GetCapture() == hwnd)
+            ::ReleaseCapture();
+    } break;
 	case WM_MOUSEMOVE:
 	{
-		ImGuiIO &io = ImGui::GetIO();
 		int const pos_x = GET_X_LPARAM(lParam);
 		int const pos_y = GET_Y_LPARAM(lParam);
 		io.MousePos = ImVec2(boost::numeric_cast<float>(pos_x),
@@ -303,6 +361,27 @@ LRESULT CALLBACK WndProc(_In_ HWND   hwnd,
 		io.MouseDown[1] = (wParam & MK_RBUTTON) != 0u;
 		io.MouseDown[2] = (wParam & MK_MBUTTON) != 0u;
 	} break;
+    case WM_MOUSEWHEEL:
+        io.MouseWheel += (float)GET_WHEEL_DELTA_WPARAM(wParam) / (float)WHEEL_DELTA;
+		break;
+    case WM_MOUSEHWHEEL:
+        io.MouseWheelH += (float)GET_WHEEL_DELTA_WPARAM(wParam) / (float)WHEEL_DELTA;
+		break;
+    case WM_KEYDOWN:
+    case WM_SYSKEYDOWN:
+        if (wParam < 256)
+            io.KeysDown[wParam] = 1;
+		break;
+    case WM_KEYUP:
+    case WM_SYSKEYUP:
+        if (wParam < 256)
+            io.KeysDown[wParam] = 0;
+		break;
+    case WM_CHAR:
+        // You can also use ToAscii()+GetKeyboardState() to retrieve characters.
+        if (wParam > 0 && wParam < 0x10000)
+            io.AddInputCharacter((unsigned short)wParam);
+		break;
 	default:
 		result = CallWindowProc(MinimalWndProc, hwnd, uMsg, wParam, lParam);
 		break;
