@@ -22,6 +22,7 @@
 #include <imgui.h>
 
 #include "utility/file.h"
+#include "utility/clock.h"
 
 
 #define SR_GLSL_VERSION "#version 330 core\n"
@@ -30,10 +31,28 @@
 #define SR_SL_TIME_UNIFORM "iTime"
 #define SR_SL_RESOLUTION_UNIFORM "iResolution"
 
-using StdClock = std::chrono::high_resolution_clock;
-template <typename Rep, typename Period>
-constexpr float StdDurationToSeconds(std::chrono::duration<Rep, Period> const &_d)
-{ return std::chrono::duration_cast<std::chrono::duration<float>>(_d).count(); }
+/*
+ * utility
+ * |- file
+ * |- timing
+ * opengl
+ * |- errors
+ * |- handles
+ * |- shaders
+ * |- render
+ * GUI (imgui based)
+ * |- input state
+ * |- layout
+ * |- draw
+ * |- context
+ * shaderunner
+ * |- api
+ *    |- C++ functions
+ *    |- in-shader interface
+ * |- context
+ * platform
+ * |- main
+ */
 
 namespace sr {
 
@@ -345,7 +364,12 @@ public:
 	~Impl_();
 
 public:
+	utility::Clock exec_time_;
+public:
 	utility::File fkernel_file_;
+	static constexpr float kFKernelUpdatePeriod = 1.f;
+	float fkernel_update_counter_;
+	void FKernelUpdate(float const _elapsed_time);
 public:
 	ImGuiContext imgui_;
 public:
@@ -360,6 +384,9 @@ public:
 };
 
 RenderContext::Impl_::Impl_() :
+	exec_time_{ [this](float const _dt) {
+		FKernelUpdate(_dt);
+	}},
 	fkernel_file_{},
 	imgui_{},
 	resolution_{ 0.f, 0.f },
@@ -398,6 +425,35 @@ RenderContext::Impl_::Impl_() :
 RenderContext::Impl_::~Impl_()
 {
 	glDeleteVertexArrays(1, &dummy_vao_);
+}
+
+void
+RenderContext::Impl_::FKernelUpdate(float const _increment)
+{
+	fkernel_update_counter_ += _increment;
+	if (fkernel_update_counter_ > kFKernelUpdatePeriod)
+	{
+#if 0
+		std::cout << "Running fkernel update.." << std::endl;
+#endif
+		fkernel_update_counter_ = 0.f;
+		bool const fkernel_file_available = fkernel_file_.Exists();
+		if (fkernel_file_available && fkernel_file_.HasChanged())
+		{
+			std::cout << "fkernel file changed, building.." << std::endl;
+			BuildFKernel(fkernel_file_.ReadAll());
+		}
+		else if (!fkernel_file_available)
+		{
+			std::cout << "fkernel file is either nonexistent, or not a regular file" << std::endl;
+		}
+		else
+		{
+#if 0
+			std::cout << "compiled fkernel is up to date" << std::endl;
+#endif
+		}
+	}
 }
 
 bool
@@ -486,43 +542,8 @@ RenderContext::~RenderContext()
 bool
 RenderContext::RenderFrame()
 {
-	static StdClock::time_point prev_render_time = StdClock::now();
-	static StdClock::time_point begin_time = prev_render_time;
-	StdClock::duration const delta_time = StdClock::now() - prev_render_time;
-	float const elapsed_time = StdDurationToSeconds(prev_render_time - begin_time);
-#if 0
-	std::cout << StdDurationToSeconds(delta_time) << std::endl;
-#endif
-
-	{
-		constexpr float kFKernelUpdatePeriod = 1.f;
-		static StdClock::time_point prev_fkernel_update = StdClock::now();
-		static bool prev_frame_had_fkernel_file = false;
-		StdClock::duration const elapsed = StdClock::now() - prev_fkernel_update;
-		if (StdDurationToSeconds(elapsed) > kFKernelUpdatePeriod)
-		{
-#if 0
-			std::cout << "Running fkernel update.." << std::endl;
-#endif
-			prev_fkernel_update = StdClock::now();
-			bool const fkernel_file_available = impl_->fkernel_file_.Exists();
-			if (fkernel_file_available && impl_->fkernel_file_.HasChanged())
-			{
-				std::cout << "fkernel file changed, building.." << std::endl;
-				impl_->BuildFKernel(impl_->fkernel_file_.ReadAll());
-			}
-			else if (!fkernel_file_available)
-			{
-				std::cout << "fkernel file is either nonexistent, or not a regular file" << std::endl;
-			}
-			else
-			{
-#if 0
-				std::cout << "compiled fkernel is up to date" << std::endl;
-#endif
-			}
-		}
-	}
+	float const elapsed_time = impl_->exec_time_.read();
+	impl_->exec_time_.step();
 
 	bool start_over = true;
 
@@ -565,8 +586,6 @@ RenderContext::RenderFrame()
 #ifdef SR_SINGLE_BUFFERING
 	glFlush();
 #endif
-
-	prev_render_time += delta_time;
 
 	{
 		impl_->imgui_.Render();

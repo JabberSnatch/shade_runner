@@ -29,6 +29,8 @@ public:
 private:
 	struct Impl_;
 	Impl_* impl_;
+
+	float time = 0.f;
 };
 
 } // namespace sr
