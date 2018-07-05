@@ -35,6 +35,29 @@ template <typename Rep, typename Period>
 constexpr float StdDurationToSeconds(std::chrono::duration<Rep, Period> const &_d)
 { return std::chrono::duration_cast<std::chrono::duration<float>>(_d).count(); }
 
+/*
+ * utility
+ * |- file
+ * |- timing
+ * opengl
+ * |- errors
+ * |- handles
+ * |- shaders
+ * |- render
+ * GUI (imgui based)
+ * |- input state
+ * |- layout
+ * |- draw
+ * |- context
+ * shaderunner
+ * |- api
+ *    |- C++ functions
+ *    |- in-shader interface
+ * |- context
+ * platform
+ * |- main
+ */
+
 namespace sr {
 
 // =============================================================================
