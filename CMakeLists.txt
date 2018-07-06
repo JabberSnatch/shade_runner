@@ -39,6 +39,7 @@ add_library(imgui STATIC ${IMGUI_SOURCES})
 set(UTILITY_DIR ${SOURCE_DIR}/utility)
 set( UTILITY_SOURCES
 	 ${UTILITY_DIR}/file.cc
+	 ${UTILITY_DIR}/timer.cc
 	 )
 
 set(SHADERUNNER_DIR ${SOURCE_DIR}/shaderunner)

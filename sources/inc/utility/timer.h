@@ -11,19 +11,32 @@
 #ifndef __YS_TIMER_HPP__
 #define __YS_TIMER_HPP__
 
+#include <chrono>
+#include <functional>
+
 
 namespace utility {
 
-struct NoOpCallback { void operator()(){} const; };
+
+struct NoOpCallback{ void operator()(float) const {} };
 
 
-template <typename ExitCallback = NoOpCallback>
 class Timer
 {
 public:
-	Timer(ExitCallback _exit_callback);
+	using ExitCallback_t = std::function<void(float)>;
+public:
+	using StdClock_t = std::chrono::high_resolution_clock;
+	template <typename Rep, typename Period>
+	constexpr float StdDurationToSeconds(std::chrono::duration<Rep, Period> const &_d)
+	{ return std::chrono::duration_cast<std::chrono::duration<float>>(_d).count(); }
+public:
+	Timer(ExitCallback_t _exit_callback = NoOpCallback{});
+	~Timer();
 private:
-}
+	StdClock_t::time_point begin_;
+	ExitCallback_t exit_callback_;
+};
 
 
 } // namespace utility

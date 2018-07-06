@@ -22,6 +22,7 @@
 #include <imgui.h>
 
 #include "utility/file.h"
+#include "utility/timer.h"
 
 
 #define SR_GLSL_VERSION "#version 330 core\n"
@@ -29,11 +30,6 @@
 #define SR_SL_DUMMY_FKERNEL "void imageMain(inout vec4 frag_color, vec2 frag_coord) { frag_color = vec4(1.0 - float(gl_PrimitiveID), 0.0, 1.0, 1.0); } \n"
 #define SR_SL_TIME_UNIFORM "iTime"
 #define SR_SL_RESOLUTION_UNIFORM "iResolution"
-
-using StdClock = std::chrono::high_resolution_clock;
-template <typename Rep, typename Period>
-constexpr float StdDurationToSeconds(std::chrono::duration<Rep, Period> const &_d)
-{ return std::chrono::duration_cast<std::chrono::duration<float>>(_d).count(); }
 
 /*
  * utility
@@ -509,6 +505,17 @@ RenderContext::~RenderContext()
 bool
 RenderContext::RenderFrame()
 {
+	{
+		utility::Timer timer{ [](float v) { std::cout << "yolo " << v << std::endl; } };
+	}
+	{
+		utility::Timer timer{};
+	}
+	{
+		utility::Timer timer{ [this](float v) { this->time += v; } };
+		std::cout << time << std::endl;
+	}
+#ifdef LEGACY_TIMING
 	static StdClock::time_point prev_render_time = StdClock::now();
 	static StdClock::time_point begin_time = prev_render_time;
 	StdClock::duration const delta_time = StdClock::now() - prev_render_time;
@@ -516,7 +523,9 @@ RenderContext::RenderFrame()
 #if 0
 	std::cout << StdDurationToSeconds(delta_time) << std::endl;
 #endif
+#endif
 
+#ifdef LEGACY_TIMING
 	{
 		constexpr float kFKernelUpdatePeriod = 1.f;
 		static StdClock::time_point prev_fkernel_update = StdClock::now();
@@ -546,6 +555,7 @@ RenderContext::RenderFrame()
 			}
 		}
 	}
+#endif
 
 	bool start_over = true;
 
@@ -563,6 +573,9 @@ RenderContext::RenderFrame()
 	glBindVertexArray(impl_->dummy_vao_);
 
 	{
+#ifndef LEGACY_TIMING
+		float elapsed_time = 0.f;
+#endif
 		int const time_loc = glGetUniformLocation(impl_->shader_program_, SR_SL_TIME_UNIFORM);
 		if (time_loc >= 0)
 		{
@@ -589,7 +602,9 @@ RenderContext::RenderFrame()
 	glFlush();
 #endif
 
+#ifdef LEGACY_TIMING
 	prev_render_time += delta_time;
+#endif
 
 	{
 		impl_->imgui_.Render();
