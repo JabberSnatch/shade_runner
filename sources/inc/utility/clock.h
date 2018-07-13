@@ -8,8 +8,8 @@
  */
 
 #pragma once
-#ifndef __YS_TIMER_HPP__
-#define __YS_TIMER_HPP__
+#ifndef __YS_CLOCK_HPP__
+#define __YS_CLOCK_HPP__
 
 #include <chrono>
 #include <functional>
@@ -21,26 +21,27 @@ namespace utility {
 struct NoOpCallback{ void operator()(float) const {} };
 
 
-class Timer
+class Clock
 {
 public:
-	using ExitCallback_t = std::function<void(float)>;
+	using StepCallback_t = std::function<void(float)>;
 public:
 	using StdClock_t = std::chrono::high_resolution_clock;
 	template <typename Rep, typename Period>
 	static constexpr float StdDurationToSeconds(std::chrono::duration<Rep, Period> const &_d)
 	{ return std::chrono::duration_cast<std::chrono::duration<float>>(_d).count(); }
 public:
-	Timer(ExitCallback_t _exit_callback = NoOpCallback{});
-	~Timer();
+	Clock(StepCallback_t _step_callback = NoOpCallback{});
 	float read() const;
+	void step();
 private:
 	StdClock_t::time_point begin_;
-	ExitCallback_t exit_callback_;
+	StdClock_t::time_point step_point_;
+	StepCallback_t step_callback_;
 };
 
 
 } // namespace utility
 
 
-#endif // __YS_TIMER_HPP__
+#endif // __YS_CLOCK_HPP__

@@ -7,26 +7,29 @@
  * ----------------------------------------------------------------------------
  */
 
-#include "utility/timer.h"
+#include "utility/clock.h"
 
 namespace utility {
 
 
-Timer::Timer(ExitCallback_t _exit_callback) :
+Clock::Clock(StepCallback_t _step_callback) :
 	begin_{ StdClock_t::now() },
-	exit_callback_{ _exit_callback }
+	step_point_{ begin_ },
+	step_callback_{ _step_callback }
 {}
 
-Timer::~Timer()
+float
+Clock::read() const
 {
-	exit_callback_(read());
+	return StdDurationToSeconds(StdClock_t::now() - begin_);
 }
 
-
-float Timer::read() const
+void
+Clock::step()
 {
-	StdClock_t::duration const delta = StdClock_t::now() - begin_;
-	return StdDurationToSeconds(delta);
+	StdClock_t::time_point new_step_point = StdClock_t::now();
+	step_callback_(StdDurationToSeconds(new_step_point - step_point_));
+	step_point_ = new_step_point;
 }
 
 

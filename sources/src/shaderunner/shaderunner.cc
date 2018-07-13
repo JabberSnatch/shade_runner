@@ -22,7 +22,7 @@
 #include <imgui.h>
 
 #include "utility/file.h"
-#include "utility/timer.h"
+#include "utility/clock.h"
 
 
 #define SR_GLSL_VERSION "#version 330 core\n"
@@ -364,10 +364,10 @@ public:
 	~Impl_();
 
 public:
-	utility::Timer exec_time_;
+	utility::Clock exec_time_;
 public:
-	static constexpr float kFKernelUpdatePeriod = 1.f;
 	utility::File fkernel_file_;
+	static constexpr float kFKernelUpdatePeriod = 1.f;
 	float fkernel_update_counter_;
 	void FKernelUpdate(float const _elapsed_time);
 public:
@@ -384,6 +384,9 @@ public:
 };
 
 RenderContext::Impl_::Impl_() :
+	exec_time_{ [this](float const _dt) {
+		FKernelUpdate(_dt);
+	}},
 	fkernel_file_{},
 	imgui_{},
 	resolution_{ 0.f, 0.f },
@@ -428,10 +431,9 @@ void
 RenderContext::Impl_::FKernelUpdate(float const _increment)
 {
 	fkernel_update_counter_ += _increment;
-	std::cout << _increment << std::endl;
 	if (fkernel_update_counter_ > kFKernelUpdatePeriod)
 	{
-#if 1
+#if 0
 		std::cout << "Running fkernel update.." << std::endl;
 #endif
 		fkernel_update_counter_ = 0.f;
@@ -447,7 +449,7 @@ RenderContext::Impl_::FKernelUpdate(float const _increment)
 		}
 		else
 		{
-#if 1
+#if 0
 			std::cout << "compiled fkernel is up to date" << std::endl;
 #endif
 		}
@@ -540,15 +542,8 @@ RenderContext::~RenderContext()
 bool
 RenderContext::RenderFrame()
 {
-	// TODO: no good, using a timer callback to do this would require the timer to be put in the platform layer..
-	//       but it doesn't seem like it belong in the render routine anyway..
 	float const elapsed_time = impl_->exec_time_.read();
-	utility::Timer fkernel_timer{
-		[this](float const _increment)
-		{
-			impl_->FKernelUpdate(_increment);
-		}
-	};
+	impl_->exec_time_.step();
 
 	bool start_over = true;
 
