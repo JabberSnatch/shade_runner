@@ -364,7 +364,12 @@ public:
 	~Impl_();
 
 public:
+	utility::Timer exec_time_;
+public:
+	static constexpr float kFKernelUpdatePeriod = 1.f;
 	utility::File fkernel_file_;
+	float fkernel_update_counter_;
+	void FKernelUpdate(float const _elapsed_time);
 public:
 	ImGuiContext imgui_;
 public:
@@ -417,6 +422,36 @@ RenderContext::Impl_::Impl_() :
 RenderContext::Impl_::~Impl_()
 {
 	glDeleteVertexArrays(1, &dummy_vao_);
+}
+
+void
+RenderContext::Impl_::FKernelUpdate(float const _increment)
+{
+	fkernel_update_counter_ += _increment;
+	std::cout << _increment << std::endl;
+	if (fkernel_update_counter_ > kFKernelUpdatePeriod)
+	{
+#if 1
+		std::cout << "Running fkernel update.." << std::endl;
+#endif
+		fkernel_update_counter_ = 0.f;
+		bool const fkernel_file_available = fkernel_file_.Exists();
+		if (fkernel_file_available && fkernel_file_.HasChanged())
+		{
+			std::cout << "fkernel file changed, building.." << std::endl;
+			BuildFKernel(fkernel_file_.ReadAll());
+		}
+		else if (!fkernel_file_available)
+		{
+			std::cout << "fkernel file is either nonexistent, or not a regular file" << std::endl;
+		}
+		else
+		{
+#if 1
+			std::cout << "compiled fkernel is up to date" << std::endl;
+#endif
+		}
+	}
 }
 
 bool
@@ -505,57 +540,15 @@ RenderContext::~RenderContext()
 bool
 RenderContext::RenderFrame()
 {
-	{
-		utility::Timer timer{ [](float v) { std::cout << "yolo " << v << std::endl; } };
-	}
-	{
-		utility::Timer timer{};
-	}
-	{
-		utility::Timer timer{ [this](float v) { this->time += v; } };
-		std::cout << time << std::endl;
-	}
-#ifdef LEGACY_TIMING
-	static StdClock::time_point prev_render_time = StdClock::now();
-	static StdClock::time_point begin_time = prev_render_time;
-	StdClock::duration const delta_time = StdClock::now() - prev_render_time;
-	float const elapsed_time = StdDurationToSeconds(prev_render_time - begin_time);
-#if 0
-	std::cout << StdDurationToSeconds(delta_time) << std::endl;
-#endif
-#endif
-
-#ifdef LEGACY_TIMING
-	{
-		constexpr float kFKernelUpdatePeriod = 1.f;
-		static StdClock::time_point prev_fkernel_update = StdClock::now();
-		static bool prev_frame_had_fkernel_file = false;
-		StdClock::duration const elapsed = StdClock::now() - prev_fkernel_update;
-		if (StdDurationToSeconds(elapsed) > kFKernelUpdatePeriod)
+	// TODO: no good, using a timer callback to do this would require the timer to be put in the platform layer..
+	//       but it doesn't seem like it belong in the render routine anyway..
+	float const elapsed_time = impl_->exec_time_.read();
+	utility::Timer fkernel_timer{
+		[this](float const _increment)
 		{
-#if 0
-			std::cout << "Running fkernel update.." << std::endl;
-#endif
-			prev_fkernel_update = StdClock::now();
-			bool const fkernel_file_available = impl_->fkernel_file_.Exists();
-			if (fkernel_file_available && impl_->fkernel_file_.HasChanged())
-			{
-				std::cout << "fkernel file changed, building.." << std::endl;
-				impl_->BuildFKernel(impl_->fkernel_file_.ReadAll());
-			}
-			else if (!fkernel_file_available)
-			{
-				std::cout << "fkernel file is either nonexistent, or not a regular file" << std::endl;
-			}
-			else
-			{
-#if 0
-				std::cout << "compiled fkernel is up to date" << std::endl;
-#endif
-			}
+			impl_->FKernelUpdate(_increment);
 		}
-	}
-#endif
+	};
 
 	bool start_over = true;
 
@@ -573,9 +566,6 @@ RenderContext::RenderFrame()
 	glBindVertexArray(impl_->dummy_vao_);
 
 	{
-#ifndef LEGACY_TIMING
-		float elapsed_time = 0.f;
-#endif
 		int const time_loc = glGetUniformLocation(impl_->shader_program_, SR_SL_TIME_UNIFORM);
 		if (time_loc >= 0)
 		{
@@ -600,10 +590,6 @@ RenderContext::RenderFrame()
 
 #ifdef SR_SINGLE_BUFFERING
 	glFlush();
-#endif
-
-#ifdef LEGACY_TIMING
-	prev_render_time += delta_time;
 #endif
 
 	{

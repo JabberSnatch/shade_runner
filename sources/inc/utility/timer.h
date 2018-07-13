@@ -28,11 +28,12 @@ public:
 public:
 	using StdClock_t = std::chrono::high_resolution_clock;
 	template <typename Rep, typename Period>
-	constexpr float StdDurationToSeconds(std::chrono::duration<Rep, Period> const &_d)
+	static constexpr float StdDurationToSeconds(std::chrono::duration<Rep, Period> const &_d)
 	{ return std::chrono::duration_cast<std::chrono::duration<float>>(_d).count(); }
 public:
 	Timer(ExitCallback_t _exit_callback = NoOpCallback{});
 	~Timer();
+	float read() const;
 private:
 	StdClock_t::time_point begin_;
 	ExitCallback_t exit_callback_;

@@ -19,8 +19,14 @@ Timer::Timer(ExitCallback_t _exit_callback) :
 
 Timer::~Timer()
 {
+	exit_callback_(read());
+}
+
+
+float Timer::read() const
+{
 	StdClock_t::duration const delta = StdClock_t::now() - begin_;
-	exit_callback_(StdDurationToSeconds(delta));
+	return StdDurationToSeconds(delta);
 }
 
 
