@@ -34,6 +34,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <functional>
 #include <memory>
 
 #include <boost/numeric/conversion/cast.hpp>
@@ -41,7 +42,12 @@
 #include <GL/glew.h>
 #include <GL/wglew.h>
 
+#include "oglbase/error.h"
 #include "shaderunner/shaderunner.h"
+
+#ifdef _DEBUG
+#define SR_GL_DEBUG_CONTEXT
+#endif
 
 namespace WXtk {
 template <typename T> void unref_param(T&&) {}
@@ -170,14 +176,25 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 		if (glewInit() != GLEW_OK)
 			std::cout << "glew failed to initialize." << std::endl;
 
-		constexpr int kProfileBit =
+		constexpr int kContextProfile =
 #ifdef SR_GL_COMPATIBILITY_PROFILE
-			WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB;
+			WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB
 #else
-			WGL_CONTEXT_CORE_PROFILE_BIT_ARB;
+			WGL_CONTEXT_CORE_PROFILE_BIT_ARB
 #endif
+			;
+
+		constexpr int kContextFlags =
+#ifdef SR_GL_DEBUG_CONTEXT
+			WGL_CONTEXT_DEBUG_BIT_ARB
+#else
+			0
+#endif
+			;
+
 		const int gl_attributes[] = {
-			WGL_CONTEXT_PROFILE_MASK_ARB, kProfileBit,
+			WGL_CONTEXT_PROFILE_MASK_ARB, kContextProfile,
+			WGL_CONTEXT_FLAGS_ARB, kContextFlags,
 			0
 		};
 
@@ -204,6 +221,15 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 	std::cout << "OpenGL version : " << glGetString(GL_VERSION) << std::endl;
 	std::cout << "Manufacturer : " << glGetString(GL_VENDOR) << std::endl;
 	std::cout << "Drivers : " << glGetString(GL_RENDERER) << std::endl;
+	{
+		std::cout << "Context flags : ";
+		int context_flags = 0;
+		glGetIntegerv(GL_CONTEXT_FLAGS, &context_flags);
+		if (context_flags & GL_CONTEXT_FLAG_DEBUG_BIT)
+			std::cout << "debug, ";
+		std::cout << std::endl;
+	}
+
 	if (wglSwapIntervalEXT(1))
 	{
 		std::cout << "Vsync enabled" << std::endl;
@@ -213,6 +239,9 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 		std::cout << "Could not enable Vsync" << std::endl;
 	}
 
+#ifdef SR_GL_DEBUG_CONTEXT
+	oglbase::DebugMessageControl<> debugMessageControl{};
+#endif
 	sr_context.reset(new sr::RenderContext());
 	if (__argc > 1)
 	{

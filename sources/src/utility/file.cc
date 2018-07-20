@@ -20,9 +20,7 @@ namespace boostfs = ::boost::filesystem;
 
 File::File(std::string const &_path) :
 	path_{ boostfs::absolute(boostfs::path{ _path }).generic_string() }
-{
-	assert(Exists());
-}
+{}
 
 bool File::Exists() const
 {

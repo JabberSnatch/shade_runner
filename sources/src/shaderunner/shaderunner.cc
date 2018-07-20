@@ -24,6 +24,8 @@
 #include "utility/file.h"
 #include "utility/clock.h"
 
+#include "oglbase/error.h"
+
 
 #define SR_GLSL_VERSION "#version 330 core\n"
 #define SR_SL_ENTRY_POINT(entry_point) "#define SR_ENTRY_POINT " entry_point "\n"
@@ -56,18 +58,6 @@
 
 namespace sr {
 
-// =============================================================================
-
-namespace glerror {
-std::string const &GetGLErrorString(GLenum const _error);
-bool PrintShaderError(std::ostream& _ostream, GLuint const _shader);
-bool PrintProgramError(std::ostream& _ostream, GLuint const _program);
-GLenum PrintError(std::ostream& _ostream);
-bool ClearGLError();
-} //namespace glerror
-
-// =============================================================================
-
 template <typename Deleter>
 struct GLHandle
 {
@@ -90,7 +80,7 @@ struct GLProgramDeleter
 {
 	void operator()(GLuint _program)
 	{
-		std::cout << "gl program deleted" << std::endl;
+		std::cout << "gl program deleted " << _program << std::endl;
 		glDeleteProgram(_program);
 	}
 };
@@ -98,7 +88,7 @@ struct GLShaderDeleter
 {
 	void operator()(GLuint _shader)
 	{
-		std::cout << "gl shader deleted" << std::endl;
+		std::cout << "gl shader deleted " << _shader << std::endl;
 		glDeleteShader(_shader);
 	}
 };
@@ -106,7 +96,7 @@ struct GLTextureDeleter
 {
 	void operator()(GLuint _texture)
 	{
-		std::cout << "gl texture deleted" << std::endl;
+		std::cout << "gl texture deleted " << _texture << std::endl;
 		glDeleteTextures(1, &_texture);
 	}
 };
@@ -343,7 +333,7 @@ ImGuiContext::Render() const
 	glDeleteBuffers(1, &vbo);
 	glDeleteBuffers(1, &ibo);
 
-	assert(!glerror::ClearGLError());
+	assert(!oglbase::ClearError());
 }
 
 void
@@ -368,7 +358,7 @@ public:
 public:
 	utility::File fkernel_file_;
 	static constexpr float kFKernelUpdatePeriod = 1.f;
-	float fkernel_update_counter_;
+	float fkernel_update_counter_ = 0.f;
 	void FKernelUpdate(float const _elapsed_time);
 public:
 	ImGuiContext imgui_;
@@ -508,8 +498,9 @@ GLShaderPtr CompileShader(GLenum _type, ShaderSources_t &_sources)
 	GLShaderPtr result{ glCreateShader(_type) };
 	glShaderSource(result, source_count, _sources.data(), NULL);
 	glCompileShader(result);
-	if (glerror::PrintShaderError(std::cout, result))
+	if (oglbase::GetShaderStatus<oglbase::GetShaderivFunc, GL_COMPILE_STATUS>(result))
 	{
+		oglbase::ForwardShaderLog<oglbase::GetShaderivFunc>(result);
 		result.reset(0u);
 	}
 	return result;
@@ -522,8 +513,9 @@ GLProgramPtr LinkProgram(ShaderBinaries_t const &_binaries)
 		glAttachShader(result, _shader);
 	});
 	glLinkProgram(result);
-	if (glerror::PrintProgramError(std::cout, result))
+	if (oglbase::GetShaderStatus<oglbase::GetProgramivFunc, GL_LINK_STATUS>(result))
 	{
+		oglbase::ForwardShaderLog<oglbase::GetProgramivFunc>(result);
 		result.reset(0u);
 	}
 	return result;
@@ -547,7 +539,7 @@ RenderContext::RenderFrame()
 
 	bool start_over = true;
 
-	assert(!glerror::ClearGLError());
+	assert(!oglbase::ClearError());
 
 	glDisable(GL_BLEND);
 	glDisable(GL_SCISSOR_TEST);
@@ -566,7 +558,6 @@ RenderContext::RenderFrame()
 		{
 			glUniform1f(time_loc, elapsed_time);
 		}
-		glerror::PrintError(std::cout);
 	}
 	{
 		int const resolution_loc = glGetUniformLocation(impl_->shader_program_, SR_SL_RESOLUTION_UNIFORM);
@@ -574,11 +565,10 @@ RenderContext::RenderFrame()
 		{
 			glUniform2fv(resolution_loc, 1, &(impl_->resolution_[0]));
 		}
-		glerror::PrintError(std::cout);
 	}
 
 	glDrawArrays(GL_TRIANGLES, 0, 3);
-	start_over = start_over && (glerror::PrintError(std::cout) == GL_NO_ERROR);
+	start_over = start_over && (glGetError() == GL_NO_ERROR);
 
 	glBindVertexArray(0u);
 	glUseProgram(0u);
@@ -620,115 +610,5 @@ RenderContext::GetFKernelPath() const
 	return impl_->fkernel_file_.path();
 }
 
-
-
-// =============================================================================
-
-namespace glerror {
-
-std::string const &GetGLErrorString(GLenum const _error)
-{
-	static std::string const no_error{"None"};
-	static std::string const invalid_enum{"Invalid enum"};
-	static std::string const invalid_value{"Invalid value"};
-	static std::string const invalid_op{"Invalid operation"};
-	static std::string const invalid_fb_op{"Invalid framebuffer operation"};
-	static std::string const out_of_memory{"Out of memory"};
-	static std::string const stack_underflow{"Stack underflow"};
-	static std::string const stack_overflow{"Stack overflow"};
-	static std::string const unknown{"Unknown error"};
-
-	switch(_error)
-	{
-	case GL_NO_ERROR:
-		return no_error;
-		break;
-	case GL_INVALID_ENUM:
-		return invalid_enum;
-		break;
-	case GL_INVALID_VALUE:
-		return invalid_value;
-		break;
-	case GL_INVALID_OPERATION:
-		return invalid_op;
-		break;
-	case GL_INVALID_FRAMEBUFFER_OPERATION:
-		return invalid_fb_op;
-		break;
-	case GL_OUT_OF_MEMORY:
-		return out_of_memory;
-		break;
-	case GL_STACK_UNDERFLOW:
-		return stack_underflow;
-		break;
-	case GL_STACK_OVERFLOW:
-		return stack_overflow;
-		break;
-	default:
-		return unknown;
-		break;
-	}
-}
-
-bool PrintShaderError(std::ostream& _ostream, GLuint const _shader)
-{
-	bool result = true;
-	GLint success = GL_FALSE;
-	glGetShaderiv(_shader, GL_COMPILE_STATUS, &success);
-	result = success != GL_TRUE;
-	if (result)
-	{
-		_ostream << "Shader compile error : " << std::endl;
-		{ // TODO: make sure char[] allocation is safe enough
-			GLsizei log_size = 0;
-			glGetShaderiv(_shader, GL_INFO_LOG_LENGTH, &log_size);
-			assert(log_size != 0);
-			char* const info_log = new char[log_size];
-			glGetShaderInfoLog(_shader, log_size, NULL, info_log);
-			_ostream << info_log << std::endl;
-			delete[] info_log;
-		}
-	}
-	return result;
-}
-
-bool PrintProgramError(std::ostream& _ostream, GLuint const _program)
-{
-	bool result = true;
-	GLint success = GL_FALSE;
-	glGetProgramiv(_program, GL_LINK_STATUS, &success);
-	result = success != GL_TRUE;
-	if (result)
-	{
-		_ostream << "Shader link error : " << std::endl;
-		{
-			GLsizei log_size = 0;
-			glGetProgramiv(_program, GL_INFO_LOG_LENGTH, &log_size);
-			assert(log_size != 0);
-			char* const info_log = new char[log_size];
-			glGetShaderInfoLog(_program, log_size, NULL, info_log);
-			_ostream << info_log << std::endl;
-			delete[] info_log;
-		}
-	}
-	return result;
-}
-
-GLenum PrintError(std::ostream& _ostream)
-{
-	GLenum const error_code = glGetError();
-	if (error_code != GL_NO_ERROR)
-		_ostream << "OpenGL error : " << GetGLErrorString(error_code).c_str() << std::endl;
-	return error_code;
-}
-
-bool ClearGLError()
-{
-	bool const result = (glGetError() != GL_NO_ERROR);
-	while(glGetError() != GL_NO_ERROR);
-	return result;
-}
-
-} //namespace glerror
 
 } //namespace sr
