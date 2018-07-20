@@ -42,6 +42,11 @@ set( UTILITY_SOURCES
 	 ${UTILITY_DIR}/clock.cc
 	 )
 
+set(OGLBASE_DIR ${SOURCE_DIR}/oglbase)
+set( OGLBASE_SOURCES
+	 ${OGLBASE_DIR}/error.cc
+	 )
+
 set(SHADERUNNER_DIR ${SOURCE_DIR}/shaderunner)
 set( SHADERUNNER_SOURCES
 	 ${SHADERUNNER_DIR}/shaderunner.cc
@@ -76,6 +81,18 @@ add_library(utility STATIC ${UTILITY_SOURCES})
 
 # ______________________________________________________________________________
 
+project(oglbase)
+
+_common_project_options()
+_find_gl_libraries(GL_LIBRARIES)
+add_library(oglbase STATIC ${OGLBASE_SOURCES})
+target_link_libraries( oglbase
+					   PRIVATE
+					   "${GL_LIBRARIES}"
+					   )
+
+# ______________________________________________________________________________
+
 project(shaderunner)
 
 _common_project_options()
@@ -85,6 +102,7 @@ target_link_libraries( shaderunner
 					   PRIVATE
 					   "${GL_LIBRARIES}"
 					   utility
+					   oglbase
 					   imgui
 					   )
 
