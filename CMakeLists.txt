@@ -89,7 +89,7 @@ _common_project_options()
 _find_gl_libraries(GL_LIBRARIES)
 add_library(oglbase STATIC ${OGLBASE_SOURCES})
 target_link_libraries( oglbase
-					   PRIVATE
+					   PUBLIC
 					   "${GL_LIBRARIES}"
 					   )
 
@@ -98,11 +98,9 @@ target_link_libraries( oglbase
 project(shaderunner)
 
 _common_project_options()
-_find_gl_libraries(GL_LIBRARIES)
 add_library(shaderunner STATIC ${SHADERUNNER_SOURCES})
 target_link_libraries( shaderunner
 					   PRIVATE
-					   "${GL_LIBRARIES}"
 					   utility
 					   oglbase
 					   imgui
@@ -113,11 +111,10 @@ target_link_libraries( shaderunner
 project(win32_bootstrap)
 
 _common_project_options()
-_find_gl_libraries(GL_LIBRARIES)
 add_executable(win32_bootstrap WIN32 ${WIN32_BOOTSTRAP_SOURCES})
 target_link_libraries( win32_bootstrap
 					   PRIVATE
-					   "${GL_LIBRARIES}"
+					   oglbase
 					   shaderunner
 					   imgui
 					   )
