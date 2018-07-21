@@ -25,6 +25,7 @@
 #include "utility/clock.h"
 
 #include "oglbase/error.h"
+#include "oglbase/handle.h"
 
 
 #define SR_GLSL_VERSION "#version 330 core\n"
@@ -58,59 +59,12 @@
 
 namespace sr {
 
-template <typename Deleter>
-struct GLHandle
-{
-	GLHandle() = default;
-	explicit GLHandle(GLuint _handle) : handle(_handle) {}
-	GLHandle(GLHandle const &) = delete;
-	GLHandle(GLHandle &&_v) : handle(_v.handle) { _v.handle = 0u; }
-	~GLHandle()	{ _delete(); }
-	GLHandle &operator=(GLHandle const &_v) = delete;
-	GLHandle &operator=(GLHandle &&_v){ reset(_v.handle); _v.handle = 0u; return *this;}
-	operator GLuint() const { return handle; }
-	operator bool() const { return handle != 0u; }
-	void reset(GLuint _h){ _delete(); handle = _h; }
-private:
-	void _delete() { if (handle) Deleter{}(handle); }
-	GLuint handle = 0u;
-};
-
-struct GLProgramDeleter
-{
-	void operator()(GLuint _program)
-	{
-		std::cout << "gl program deleted " << _program << std::endl;
-		glDeleteProgram(_program);
-	}
-};
-struct GLShaderDeleter
-{
-	void operator()(GLuint _shader)
-	{
-		std::cout << "gl shader deleted " << _shader << std::endl;
-		glDeleteShader(_shader);
-	}
-};
-struct GLTextureDeleter
-{
-	void operator()(GLuint _texture)
-	{
-		std::cout << "gl texture deleted " << _texture << std::endl;
-		glDeleteTextures(1, &_texture);
-	}
-};
-
-using GLProgramPtr = GLHandle<GLProgramDeleter>;
-using GLShaderPtr = GLHandle<GLShaderDeleter>;
-using GLTexturePtr = GLHandle<GLTextureDeleter>;
-
 using ShaderSources_t = std::vector<char const *>;
 using ShaderBinaries_t = std::vector<GLuint>;
 
-GLShaderPtr CompileFKernel(ShaderSources_t const &_kernel_sources);
-GLShaderPtr CompileShader(GLenum _type, ShaderSources_t &_sources);
-GLProgramPtr LinkProgram(ShaderBinaries_t const &_binaries);
+oglbase::ShaderPtr CompileFKernel(ShaderSources_t const &_kernel_sources);
+oglbase::ShaderPtr CompileShader(GLenum _type, ShaderSources_t &_sources);
+oglbase::ProgramPtr LinkProgram(ShaderBinaries_t const &_binaries);
 
 // =============================================================================
 
@@ -127,8 +81,8 @@ public:
 	void Render() const;
 	void SetResolution(Resolution_t const &_resolution);
 public:
-	GLTexturePtr font_texture_;
-	GLProgramPtr shader_program_;
+	oglbase::TexturePtr font_texture_;
+	oglbase::ProgramPtr shader_program_;
 };
 
 ImGuiContext::ImGuiContext() :
@@ -184,9 +138,9 @@ void main()
 )__SR_SS__"
 		};
 
-		GLShaderPtr vshader = CompileShader(GL_VERTEX_SHADER, vertex_shader_sources);
+		oglbase::ShaderPtr vshader = CompileShader(GL_VERTEX_SHADER, vertex_shader_sources);
 		assert(vshader);
-		GLShaderPtr fshader = CompileShader(GL_FRAGMENT_SHADER, fragment_shader_sources);
+		oglbase::ShaderPtr fshader = CompileShader(GL_FRAGMENT_SHADER, fragment_shader_sources);
 		assert(fshader);
 		ShaderBinaries_t const shaders {
 			vshader, fshader
@@ -366,9 +320,9 @@ public:
 	Resolution_t resolution_;
 public:
 	bool BuildFKernel(std::string const &_sources);
-	GLProgramPtr shader_program_;
-	GLShaderPtr cached_vshader_;
-	GLShaderPtr cached_fshader_;
+	oglbase::ProgramPtr shader_program_;
+	oglbase::ShaderPtr cached_vshader_;
+	oglbase::ShaderPtr cached_fshader_;
 public:
 	GLuint dummy_vao_;
 };
@@ -450,7 +404,7 @@ bool
 RenderContext::Impl_::BuildFKernel(std::string const &_sources)
 {
 	ShaderSources_t kernel_sources{ _sources.c_str() };
-	GLShaderPtr compiled_fshader = CompileFKernel(kernel_sources);
+	oglbase::ShaderPtr compiled_fshader = CompileFKernel(kernel_sources);
 	if (!compiled_fshader) return false;
 
 	assert(cached_vshader_);
@@ -458,7 +412,7 @@ RenderContext::Impl_::BuildFKernel(std::string const &_sources)
 		cached_vshader_,
 		compiled_fshader
 	};
-	GLProgramPtr linked_program = LinkProgram(shader_binaries);
+	oglbase::ProgramPtr linked_program = LinkProgram(shader_binaries);
 	if (!linked_program) return false;
 
 	cached_fshader_ = std::move(compiled_fshader);
@@ -467,10 +421,10 @@ RenderContext::Impl_::BuildFKernel(std::string const &_sources)
 }
 
 
-
 // =============================================================================
 
-GLShaderPtr CompileFKernel(ShaderSources_t const &_kernel_sources)
+
+oglbase::ShaderPtr CompileFKernel(ShaderSources_t const &_kernel_sources)
 {
 	static ShaderSources_t const kKernelPrefix{
 		SR_GLSL_VERSION,
@@ -492,10 +446,10 @@ GLShaderPtr CompileFKernel(ShaderSources_t const &_kernel_sources)
 	return CompileShader(GL_FRAGMENT_SHADER, shader_sources);
 }
 
-GLShaderPtr CompileShader(GLenum _type, ShaderSources_t &_sources)
+oglbase::ShaderPtr CompileShader(GLenum _type, ShaderSources_t &_sources)
 {
 	GLsizei const source_count = boost::numeric_cast<GLsizei>(_sources.size());
-	GLShaderPtr result{ glCreateShader(_type) };
+	oglbase::ShaderPtr result{ glCreateShader(_type) };
 	glShaderSource(result, source_count, _sources.data(), NULL);
 	glCompileShader(result);
 	if (oglbase::GetShaderStatus<oglbase::GetShaderivFunc, GL_COMPILE_STATUS>(result))
@@ -506,9 +460,9 @@ GLShaderPtr CompileShader(GLenum _type, ShaderSources_t &_sources)
 	return result;
 }
 
-GLProgramPtr LinkProgram(ShaderBinaries_t const &_binaries)
+oglbase::ProgramPtr LinkProgram(ShaderBinaries_t const &_binaries)
 {
-	GLProgramPtr result{ glCreateProgram() };
+	oglbase::ProgramPtr result{ glCreateProgram() };
 	std::for_each(_binaries.cbegin(), _binaries.cend(), [&result](GLuint _shader) {
 		glAttachShader(result, _shader);
 	});
