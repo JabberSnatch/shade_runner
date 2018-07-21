@@ -26,6 +26,7 @@
 
 #include "oglbase/error.h"
 #include "oglbase/handle.h"
+#include "oglbase/shader.h"
 
 
 #define SR_GLSL_VERSION "#version 330 core\n"
@@ -58,15 +59,6 @@
  */
 
 namespace sr {
-
-using ShaderSources_t = std::vector<char const *>;
-using ShaderBinaries_t = std::vector<GLuint>;
-
-oglbase::ShaderPtr CompileFKernel(ShaderSources_t const &_kernel_sources);
-oglbase::ShaderPtr CompileShader(GLenum _type, ShaderSources_t &_sources);
-oglbase::ProgramPtr LinkProgram(ShaderBinaries_t const &_binaries);
-
-// =============================================================================
 
 using Resolution_t = std::array<float, 2>;
 
@@ -111,7 +103,7 @@ ImGuiContext::ImGuiContext() :
 		glBindTexture(GL_TEXTURE_2D, 0u);
 	}
 	{
-		static ShaderSources_t vertex_shader_sources = {
+		static oglbase::ShaderSources_t vertex_shader_sources = {
 			SR_GLSL_VERSION,
 R"__SR_SS__(
 in vec2 position; in vec2 uv; in vec4 color;
@@ -125,7 +117,7 @@ void main()
 )__SR_SS__"
 		};
 
-		static ShaderSources_t fragment_shader_sources = {
+		static oglbase::ShaderSources_t fragment_shader_sources = {
 			SR_GLSL_VERSION,
 R"__SR_SS__(
 in vec2 vert_uv; in vec4 vert_color;
@@ -138,14 +130,16 @@ void main()
 )__SR_SS__"
 		};
 
-		oglbase::ShaderPtr vshader = CompileShader(GL_VERTEX_SHADER, vertex_shader_sources);
+		oglbase::ShaderPtr vshader = oglbase::CompileShader(GL_VERTEX_SHADER,
+															vertex_shader_sources);
 		assert(vshader);
-		oglbase::ShaderPtr fshader = CompileShader(GL_FRAGMENT_SHADER, fragment_shader_sources);
+		oglbase::ShaderPtr fshader = oglbase::CompileShader(GL_FRAGMENT_SHADER,
+															fragment_shader_sources);
 		assert(fshader);
-		ShaderBinaries_t const shaders {
+		oglbase::ShaderBinaries_t const shaders {
 			vshader, fshader
 		};
-		shader_program_ = LinkProgram(shaders);
+		shader_program_ = oglbase::LinkProgram(shaders);
 		assert(shader_program_);
 	}
 }
@@ -319,6 +313,7 @@ public:
 public:
 	Resolution_t resolution_;
 public:
+	static oglbase::ShaderPtr CompileFKernel(oglbase::ShaderSources_t const &_kernel_sources);
 	bool BuildFKernel(std::string const &_sources);
 	oglbase::ProgramPtr shader_program_;
 	oglbase::ShaderPtr cached_vshader_;
@@ -340,24 +335,24 @@ RenderContext::Impl_::Impl_() :
 	dummy_vao_{ 0u }
 {
 	{
-		static ShaderSources_t vertex_sources{
+		static oglbase::ShaderSources_t vertex_sources{
 			SR_GLSL_VERSION,
 			#include "shaders/fullscreen_tri.vert.h"
 		};
-		cached_vshader_ = CompileShader(GL_VERTEX_SHADER, vertex_sources);
+		cached_vshader_ = oglbase::CompileShader(GL_VERTEX_SHADER, vertex_sources);
 
-		static ShaderSources_t const default_fkernel{
+		static oglbase::ShaderSources_t const default_fkernel{
 			SR_SL_DUMMY_FKERNEL
 		};
 		cached_fshader_ = CompileFKernel(default_fkernel);
 
 		assert(cached_vshader_);
 		assert(cached_fshader_);
-		ShaderBinaries_t const shader_binaries{
+		oglbase::ShaderBinaries_t const shader_binaries{
 			cached_vshader_,
 			cached_fshader_
 		};
-		shader_program_ = LinkProgram(shader_binaries);
+		shader_program_ = oglbase::LinkProgram(shader_binaries);
 		assert(shader_program_);
 	}
 
@@ -400,81 +395,48 @@ RenderContext::Impl_::FKernelUpdate(float const _increment)
 	}
 }
 
+oglbase::ShaderPtr
+RenderContext::Impl_::CompileFKernel(oglbase::ShaderSources_t const &_kernel_sources)
+{
+	static oglbase::ShaderSources_t const kKernelPrefix{
+		SR_GLSL_VERSION,
+		"uniform float " SR_SL_TIME_UNIFORM ";\n",
+		"uniform vec2 " SR_SL_RESOLUTION_UNIFORM ";\n"
+	};
+	static oglbase::ShaderSources_t const kKernelSuffix{
+		"\n",
+		SR_SL_ENTRY_POINT("imageMain"),
+		#include "shaders/entry_point.frag.h"
+	};
+
+	oglbase::ShaderSources_t shader_sources{};
+	shader_sources.reserve(kKernelPrefix.size() + _kernel_sources.size() + kKernelSuffix.size());
+	std::copy(kKernelPrefix.cbegin(), kKernelPrefix.cend(), std::back_inserter(shader_sources));
+	std::copy(_kernel_sources.cbegin(), _kernel_sources.cend(), std::back_inserter(shader_sources));
+	std::copy(kKernelSuffix.cbegin(), kKernelSuffix.cend(), std::back_inserter(shader_sources));
+
+	return oglbase::CompileShader(GL_FRAGMENT_SHADER, shader_sources);
+}
+
 bool
 RenderContext::Impl_::BuildFKernel(std::string const &_sources)
 {
-	ShaderSources_t kernel_sources{ _sources.c_str() };
+	oglbase::ShaderSources_t kernel_sources{ _sources.c_str() };
 	oglbase::ShaderPtr compiled_fshader = CompileFKernel(kernel_sources);
 	if (!compiled_fshader) return false;
 
 	assert(cached_vshader_);
-	ShaderBinaries_t const shader_binaries{
+	oglbase::ShaderBinaries_t const shader_binaries{
 		cached_vshader_,
 		compiled_fshader
 	};
-	oglbase::ProgramPtr linked_program = LinkProgram(shader_binaries);
+	oglbase::ProgramPtr linked_program = oglbase::LinkProgram(shader_binaries);
 	if (!linked_program) return false;
 
 	cached_fshader_ = std::move(compiled_fshader);
 	shader_program_ = std::move(linked_program);
 	return true;
 }
-
-
-// =============================================================================
-
-
-oglbase::ShaderPtr CompileFKernel(ShaderSources_t const &_kernel_sources)
-{
-	static ShaderSources_t const kKernelPrefix{
-		SR_GLSL_VERSION,
-		"uniform float " SR_SL_TIME_UNIFORM ";\n",
-		"uniform vec2 " SR_SL_RESOLUTION_UNIFORM ";\n"
-	};
-	static ShaderSources_t const kKernelSuffix{
-		"\n",
-		SR_SL_ENTRY_POINT("imageMain"),
-		#include "shaders/entry_point.frag.h"
-	};
-
-	ShaderSources_t shader_sources{};
-	shader_sources.reserve(kKernelPrefix.size() + _kernel_sources.size() + kKernelSuffix.size());
-	std::copy(kKernelPrefix.cbegin(), kKernelPrefix.cend(), std::back_inserter(shader_sources));
-	std::copy(_kernel_sources.cbegin(), _kernel_sources.cend(), std::back_inserter(shader_sources));
-	std::copy(kKernelSuffix.cbegin(), kKernelSuffix.cend(), std::back_inserter(shader_sources));
-
-	return CompileShader(GL_FRAGMENT_SHADER, shader_sources);
-}
-
-oglbase::ShaderPtr CompileShader(GLenum _type, ShaderSources_t &_sources)
-{
-	GLsizei const source_count = boost::numeric_cast<GLsizei>(_sources.size());
-	oglbase::ShaderPtr result{ glCreateShader(_type) };
-	glShaderSource(result, source_count, _sources.data(), NULL);
-	glCompileShader(result);
-	if (oglbase::GetShaderStatus<oglbase::GetShaderivFunc, GL_COMPILE_STATUS>(result))
-	{
-		oglbase::ForwardShaderLog<oglbase::GetShaderivFunc>(result);
-		result.reset(0u);
-	}
-	return result;
-}
-
-oglbase::ProgramPtr LinkProgram(ShaderBinaries_t const &_binaries)
-{
-	oglbase::ProgramPtr result{ glCreateProgram() };
-	std::for_each(_binaries.cbegin(), _binaries.cend(), [&result](GLuint _shader) {
-		glAttachShader(result, _shader);
-	});
-	glLinkProgram(result);
-	if (oglbase::GetShaderStatus<oglbase::GetProgramivFunc, GL_LINK_STATUS>(result))
-	{
-		oglbase::ForwardShaderLog<oglbase::GetProgramivFunc>(result);
-		result.reset(0u);
-	}
-	return result;
-}
-
 
 // =============================================================================
 

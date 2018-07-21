@@ -46,6 +46,7 @@ set(OGLBASE_DIR ${SOURCE_DIR}/oglbase)
 set( OGLBASE_SOURCES
 	 ${OGLBASE_DIR}/error.cc
 	 ${OGLBASE_DIR}/handle.cc
+	 ${OGLBASE_DIR}/shader.cc
 	 )
 
 set(SHADERUNNER_DIR ${SOURCE_DIR}/shaderunner)
