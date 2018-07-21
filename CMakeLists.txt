@@ -49,6 +49,11 @@ set( OGLBASE_SOURCES
 	 ${OGLBASE_DIR}/shader.cc
 	 )
 
+set(UIBASE_DIR ${SOURCE_DIR}/uibase)
+set( UIBASE_SOURCES
+	 ${UIBASE_DIR}/imguicontext.cc
+	 )
+
 set(SHADERUNNER_DIR ${SOURCE_DIR}/shaderunner)
 set( SHADERUNNER_SOURCES
 	 ${SHADERUNNER_DIR}/shaderunner.cc
@@ -95,6 +100,19 @@ target_link_libraries( oglbase
 
 # ______________________________________________________________________________
 
+project(uibase)
+
+_common_project_options()
+add_library(uibase STATIC ${UIBASE_SOURCES})
+target_link_libraries( uibase
+					   PUBLIC
+					   imgui
+					   PRIVATE
+					   oglbase
+					   )
+
+# ______________________________________________________________________________
+
 project(shaderunner)
 
 _common_project_options()
@@ -103,7 +121,7 @@ target_link_libraries( shaderunner
 					   PRIVATE
 					   utility
 					   oglbase
-					   imgui
+					   uibase
 					   )
 
 # ______________________________________________________________________________
@@ -115,8 +133,8 @@ add_executable(win32_bootstrap WIN32 ${WIN32_BOOTSTRAP_SOURCES})
 target_link_libraries( win32_bootstrap
 					   PRIVATE
 					   oglbase
+					   uibase
 					   shaderunner
-					   imgui
 					   )
 
 add_custom_command( TARGET win32_bootstrap POST_BUILD
@@ -132,6 +150,6 @@ install( FILES ${LIB_DIR}/glew/bin/Release/x64/glew32.dll
 
 # ==============================================================================
 set(CPACK_PACKAGE_NAME "Shade Runner")
-set(CPACK_PACKAGE_VERSION "0.0.0")
+set(CPACK_PACKAGE_VERSION "0.0.1")
 include(CPack)
 
