@@ -14,6 +14,9 @@
 #include <windows.h>
 #pragma warning(pop)
 #include <windowsx.h>
+#include <io.h>
+#include <fcntl.h>
+#include <stdio.h>
 
 #pragma warning(push)
 // (Wall) C4514 : unreferenced inline function was removed
@@ -31,6 +34,8 @@
 #pragma warning(disable : 4365 4571 4625 4626 4774 4820 5026 5027)
 #include <iostream>
 #pragma warning(pop)
+
+#include <fstream>
 
 #include <algorithm>
 #include <cassert>
@@ -107,6 +112,22 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 	WXtk::unref_param(hPrevInstance);
 	WXtk::unref_param(lpCmdLine);
 	WXtk::unref_param(nCmdShow);
+
+	AllocConsole();
+	std::unique_ptr<std::ofstream> console_stdout{};
+	{
+		HANDLE const h_stdout = GetStdHandle(STD_OUTPUT_HANDLE);
+		assert(h_stdout != INVALID_HANDLE_VALUE);
+		assert(h_stdout != NULL);
+		int const file_desc = _open_osfhandle((intptr_t)h_stdout,
+											  _O_TEXT);
+		assert(file_desc != -1);
+		std::FILE* const file = _fdopen(file_desc, "w");
+		assert(file != nullptr);
+		console_stdout = std::make_unique<std::ofstream>(file);
+	}
+	assert(console_stdout != nullptr);
+	std::cout.rdbuf(console_stdout->rdbuf());
 
 	WNDCLASS wc{ 0 };
 	wc.style = CS_OWNDC;
@@ -288,6 +309,7 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 	sr_context.reset(nullptr);
 	wglMakeCurrent(handles.device_context, NULL);
 
+	FreeConsole();
 	return static_cast<int>(msg.wParam);
 }
 

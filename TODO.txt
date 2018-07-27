@@ -1,3 +1,4 @@
 
 [ ] shaderunner.cc: refactor list
 [ ] main.cc: move SR_GL_DEBUG_CONTEXT definition to CMakeLists
+[ ] main.cc: add "show console" definition to CMakeLists
