@@ -31,7 +31,6 @@
 
 #define SR_GLSL_VERSION "#version 330 core\n"
 #define SR_SL_ENTRY_POINT(entry_point) "#define SR_ENTRY_POINT " entry_point "\n"
-#define SR_SL_DUMMY_FKERNEL "void imageMain(inout vec4 frag_color, vec2 frag_coord) { frag_color = vec4(1.0 - float(gl_PrimitiveID), 0.0, 1.0, 1.0); } \n"
 #define SR_SL_TIME_UNIFORM "iTime"
 #define SR_SL_RESOLUTION_UNIFORM "iResolution"
 
@@ -53,6 +52,7 @@
  * [ ] |- API
  * [ ] |- editor
  * [X] |- context
+ * [ ] |- kernel
  * [ ] platform
  * [X] |- main
  */
@@ -81,7 +81,11 @@ public:
 public:
 	Resolution_t resolution_;
 public:
-	static oglbase::ShaderPtr CompileFKernel(oglbase::ShaderSources_t const &_kernel_sources);
+	enum class ShaderStage { kVertex = 0, kFragment, kCount };
+	static oglbase::ShaderSources_t const &KernelSuffix(ShaderStage _stage);
+	static GLenum ShaderStageToGLenum(ShaderStage _stage);
+
+	static oglbase::ShaderPtr CompileKernel(ShaderStage _stage, oglbase::ShaderSources_t const &_kernel_sources);
 	bool BuildFKernel(std::string const &_sources);
 	oglbase::ProgramPtr shader_program_;
 	oglbase::ShaderPtr cached_vshader_;
@@ -103,16 +107,15 @@ RenderContext::Impl_::Impl_() :
 	dummy_vao_{ 0u }
 {
 	{
-		static oglbase::ShaderSources_t vertex_sources{
-			SR_GLSL_VERSION,
-			#include "shaders/fullscreen_tri.vert.h"
+		static oglbase::ShaderSources_t const default_vkernel{
+			"const vec2 kTriVertices[] = vec2[3](vec2(-1.0, 3.0), vec2(-1.0, -1.0), vec2(3.0, -1.0)); void vertexMain(inout vec4 vert_position) { vert_position = vec4(kTriVertices[gl_VertexID], 0.0, 1.0); }\n"
 		};
-		cached_vshader_ = oglbase::CompileShader(GL_VERTEX_SHADER, vertex_sources);
+		cached_vshader_ = CompileKernel(ShaderStage::kVertex, default_vkernel);
 
 		static oglbase::ShaderSources_t const default_fkernel{
-			SR_SL_DUMMY_FKERNEL
+			"void imageMain(inout vec4 frag_color, vec2 frag_coord) { frag_color = vec4(1.0 - float(gl_PrimitiveID), 0.0, 1.0, 1.0); } \n"
 		};
-		cached_fshader_ = CompileFKernel(default_fkernel);
+		cached_fshader_ = CompileKernel(ShaderStage::kFragment, default_fkernel);
 
 		assert(cached_vshader_);
 		assert(cached_fshader_);
@@ -163,34 +166,72 @@ RenderContext::Impl_::FKernelUpdate(float const _increment)
 	}
 }
 
+oglbase::ShaderSources_t const &
+RenderContext::Impl_::KernelSuffix(ShaderStage _stage)
+{
+	switch (_stage)
+	{
+	case ShaderStage::kVertex:
+	{
+		static oglbase::ShaderSources_t const kKernelSuffix{
+			"\n",
+			SR_SL_ENTRY_POINT("vertexMain"),
+			#include "shaders/entry_point.vert.h"
+		};
+		return kKernelSuffix;
+	}
+	case ShaderStage::kFragment:
+	{
+		static oglbase::ShaderSources_t const kKernelSuffix{
+			"\n",
+			SR_SL_ENTRY_POINT("imageMain"),
+			#include "shaders/entry_point.frag.h"
+		};
+		return kKernelSuffix;
+	}
+	default:
+	{
+		static oglbase::ShaderSources_t const kEmptySuffix{};
+		return kEmptySuffix;
+	}
+	}
+}
+
+GLenum
+RenderContext::Impl_::ShaderStageToGLenum(ShaderStage _stage)
+{
+	switch (_stage)
+	{
+	case ShaderStage::kVertex: return GL_VERTEX_SHADER;
+	case ShaderStage::kFragment: return GL_FRAGMENT_SHADER;
+	default: return static_cast<GLenum>(0u);
+	}
+}
+
 oglbase::ShaderPtr
-RenderContext::Impl_::CompileFKernel(oglbase::ShaderSources_t const &_kernel_sources)
+RenderContext::Impl_::CompileKernel(ShaderStage _stage, oglbase::ShaderSources_t const &_kernel_sources)
 {
 	static oglbase::ShaderSources_t const kKernelPrefix{
 		SR_GLSL_VERSION,
 		"uniform float " SR_SL_TIME_UNIFORM ";\n",
 		"uniform vec2 " SR_SL_RESOLUTION_UNIFORM ";\n"
 	};
-	static oglbase::ShaderSources_t const kKernelSuffix{
-		"\n",
-		SR_SL_ENTRY_POINT("imageMain"),
-		#include "shaders/entry_point.frag.h"
-	};
+	oglbase::ShaderSources_t const &kernel_suffix = KernelSuffix(_stage);
 
 	oglbase::ShaderSources_t shader_sources{};
-	shader_sources.reserve(kKernelPrefix.size() + _kernel_sources.size() + kKernelSuffix.size());
+	shader_sources.reserve(kKernelPrefix.size() + _kernel_sources.size() + kernel_suffix.size());
 	std::copy(kKernelPrefix.cbegin(), kKernelPrefix.cend(), std::back_inserter(shader_sources));
 	std::copy(_kernel_sources.cbegin(), _kernel_sources.cend(), std::back_inserter(shader_sources));
-	std::copy(kKernelSuffix.cbegin(), kKernelSuffix.cend(), std::back_inserter(shader_sources));
+	std::copy(kernel_suffix.cbegin(), kernel_suffix.cend(), std::back_inserter(shader_sources));
 
-	return oglbase::CompileShader(GL_FRAGMENT_SHADER, shader_sources);
+	return oglbase::CompileShader(ShaderStageToGLenum(_stage), shader_sources);
 }
 
 bool
 RenderContext::Impl_::BuildFKernel(std::string const &_sources)
 {
 	oglbase::ShaderSources_t kernel_sources{ _sources.c_str() };
-	oglbase::ShaderPtr compiled_fshader = CompileFKernel(kernel_sources);
+	oglbase::ShaderPtr compiled_fshader = CompileKernel(ShaderStage::kFragment, kernel_sources);
 	if (!compiled_fshader) return false;
 
 	assert(cached_vshader_);
