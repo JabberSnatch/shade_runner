@@ -84,12 +84,34 @@ public:
 	enum class ShaderStage { kVertex = 0, kFragment, kCount };
 	static oglbase::ShaderSources_t const &KernelSuffix(ShaderStage _stage);
 	static GLenum ShaderStageToGLenum(ShaderStage _stage);
+	struct ShaderCache
+	{
+	public:
+		ShaderCache() = default;
+	public:
+		oglbase::ShaderPtr& operator[](ShaderStage _stage)
+		{
+			return cached_shaders_[static_cast<std::size_t>(_stage)];
+		}
+		oglbase::ShaderPtr const& operator[](ShaderStage _stage) const
+		{
+			return cached_shaders_[static_cast<std::size_t>(_stage)];
+		}
+		operator oglbase::ShaderBinaries_t() const
+		{
+			return oglbase::ShaderBinaries_t(cached_shaders_.cbegin(),
+											 cached_shaders_.cend());
+		}
+	public:
+		using ShadersContainer_t =
+			std::array<oglbase::ShaderPtr, static_cast<std::size_t>(ShaderStage::kCount)>;
+		ShadersContainer_t cached_shaders_;
+	};
+	ShaderCache shader_cache_;
 
 	static oglbase::ShaderPtr CompileKernel(ShaderStage _stage, oglbase::ShaderSources_t const &_kernel_sources);
 	bool BuildFKernel(std::string const &_sources);
 	oglbase::ProgramPtr shader_program_;
-	oglbase::ShaderPtr cached_vshader_;
-	oglbase::ShaderPtr cached_fshader_;
 public:
 	GLuint dummy_vao_;
 };
@@ -101,28 +123,26 @@ RenderContext::Impl_::Impl_() :
 	fkernel_file_{},
 	imgui_{},
 	resolution_{ 0.f, 0.f },
+	shader_cache_{},
 	shader_program_{ 0u },
-	cached_vshader_{ 0u },
-	cached_fshader_{ 0u },
 	dummy_vao_{ 0u }
 {
 	{
 		static oglbase::ShaderSources_t const default_vkernel{
 			"const vec2 kTriVertices[] = vec2[3](vec2(-1.0, 3.0), vec2(-1.0, -1.0), vec2(3.0, -1.0)); void vertexMain(inout vec4 vert_position) { vert_position = vec4(kTriVertices[gl_VertexID], 0.0, 1.0); }\n"
 		};
-		cached_vshader_ = CompileKernel(ShaderStage::kVertex, default_vkernel);
+		shader_cache_[ShaderStage::kVertex] =
+			CompileKernel(ShaderStage::kVertex, default_vkernel);
 
 		static oglbase::ShaderSources_t const default_fkernel{
 			"void imageMain(inout vec4 frag_color, vec2 frag_coord) { frag_color = vec4(1.0 - float(gl_PrimitiveID), 0.0, 1.0, 1.0); } \n"
 		};
-		cached_fshader_ = CompileKernel(ShaderStage::kFragment, default_fkernel);
+		shader_cache_[ShaderStage::kFragment] =
+			CompileKernel(ShaderStage::kFragment, default_fkernel);
 
-		assert(cached_vshader_);
-		assert(cached_fshader_);
-		oglbase::ShaderBinaries_t const shader_binaries{
-			cached_vshader_,
-			cached_fshader_
-		};
+		assert(shader_cache_[ShaderStage::kVertex]);
+		assert(shader_cache_[ShaderStage::kFragment]);
+		oglbase::ShaderBinaries_t const shader_binaries = shader_cache_;
 		shader_program_ = oglbase::LinkProgram(shader_binaries);
 		assert(shader_program_);
 	}
@@ -234,15 +254,15 @@ RenderContext::Impl_::BuildFKernel(std::string const &_sources)
 	oglbase::ShaderPtr compiled_fshader = CompileKernel(ShaderStage::kFragment, kernel_sources);
 	if (!compiled_fshader) return false;
 
-	assert(cached_vshader_);
+	assert(shader_cache_[ShaderStage::kVertex]);
 	oglbase::ShaderBinaries_t const shader_binaries{
-		cached_vshader_,
+		shader_cache_[ShaderStage::kVertex],
 		compiled_fshader
 	};
 	oglbase::ProgramPtr linked_program = oglbase::LinkProgram(shader_binaries);
 	if (!linked_program) return false;
 
-	cached_fshader_ = std::move(compiled_fshader);
+	shader_cache_[ShaderStage::kFragment] = std::move(compiled_fshader);
 	shader_program_ = std::move(linked_program);
 	return true;
 }
