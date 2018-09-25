@@ -33,6 +33,8 @@
 #define SR_SL_ENTRY_POINT(entry_point) "#define SR_ENTRY_POINT " entry_point "\n"
 #define SR_SL_TIME_UNIFORM "iTime"
 #define SR_SL_RESOLUTION_UNIFORM "iResolution"
+#define SR_VERT_ENTRY_POINT "vertexMain"
+#define SR_FRAG_ENTRY_POINT "imageMain"
 
 /* [ DESIGN DRAFT ]
  * [X] utility
@@ -97,6 +99,22 @@ public:
 		{
 			return cached_shaders_[static_cast<std::size_t>(_stage)];
 		}
+		template <ShaderStage ... kStages>
+		oglbase::ShaderBinaries_t select() const
+		{
+			return oglbase::ShaderBinaries_t{
+				cached_shaders_[static_cast<std::size_t>(kStages)]...
+			};
+		}
+		oglbase::ShaderBinaries_t select(std::vector<ShaderStage> const &_stages) const
+		{
+			oglbase::ShaderBinaries_t result{};
+			std::transform(_stages.cbegin(), _stages.cend(), std::back_inserter(result),
+						   [this](ShaderStage const _stage) {
+				return static_cast<GLuint>(cached_shaders_[static_cast<std::size_t>(_stage)]);
+			});
+			return result;
+		}
 		operator oglbase::ShaderBinaries_t() const
 		{
 			return oglbase::ShaderBinaries_t(cached_shaders_.cbegin(),
@@ -108,6 +126,7 @@ public:
 		ShadersContainer_t cached_shaders_;
 	};
 	ShaderCache shader_cache_;
+
 
 	static oglbase::ShaderPtr CompileKernel(ShaderStage _stage, oglbase::ShaderSources_t const &_kernel_sources);
 	bool BuildFKernel(std::string const &_sources);
@@ -129,20 +148,21 @@ RenderContext::Impl_::Impl_() :
 {
 	{
 		static oglbase::ShaderSources_t const default_vkernel{
-			"const vec2 kTriVertices[] = vec2[3](vec2(-1.0, 3.0), vec2(-1.0, -1.0), vec2(3.0, -1.0)); void vertexMain(inout vec4 vert_position) { vert_position = vec4(kTriVertices[gl_VertexID], 0.0, 1.0); }\n"
+			"const vec2 kTriVertices[] = vec2[3](vec2(-1.0, 3.0), vec2(-1.0, -1.0), vec2(3.0, -1.0)); void " SR_VERT_ENTRY_POINT "(inout vec4 vert_position) { vert_position = vec4(kTriVertices[gl_VertexID], 0.0, 1.0); }\n"
 		};
 		shader_cache_[ShaderStage::kVertex] =
 			CompileKernel(ShaderStage::kVertex, default_vkernel);
 
 		static oglbase::ShaderSources_t const default_fkernel{
-			"void imageMain(inout vec4 frag_color, vec2 frag_coord) { frag_color = vec4(1.0 - float(gl_PrimitiveID), 0.0, 1.0, 1.0); } \n"
+			"void " SR_FRAG_ENTRY_POINT "(inout vec4 frag_color, vec2 frag_coord) { frag_color = vec4(1.0 - float(gl_PrimitiveID), 0.0, 1.0, 1.0); } \n"
 		};
 		shader_cache_[ShaderStage::kFragment] =
 			CompileKernel(ShaderStage::kFragment, default_fkernel);
 
 		assert(shader_cache_[ShaderStage::kVertex]);
 		assert(shader_cache_[ShaderStage::kFragment]);
-		oglbase::ShaderBinaries_t const shader_binaries = shader_cache_;
+		oglbase::ShaderBinaries_t const shader_binaries =
+			shader_cache_.select<ShaderStage::kVertex, ShaderStage::kFragment>();
 		shader_program_ = oglbase::LinkProgram(shader_binaries);
 		assert(shader_program_);
 	}
@@ -195,7 +215,7 @@ RenderContext::Impl_::KernelSuffix(ShaderStage _stage)
 	{
 		static oglbase::ShaderSources_t const kKernelSuffix{
 			"\n",
-			SR_SL_ENTRY_POINT("vertexMain"),
+			SR_SL_ENTRY_POINT(SR_VERT_ENTRY_POINT),
 			#include "shaders/entry_point.vert.h"
 		};
 		return kKernelSuffix;
@@ -204,7 +224,7 @@ RenderContext::Impl_::KernelSuffix(ShaderStage _stage)
 	{
 		static oglbase::ShaderSources_t const kKernelSuffix{
 			"\n",
-			SR_SL_ENTRY_POINT("imageMain"),
+			SR_SL_ENTRY_POINT(SR_FRAG_ENTRY_POINT),
 			#include "shaders/entry_point.frag.h"
 		};
 		return kKernelSuffix;
