@@ -35,4 +35,4 @@ private:
 
 } // namespace sr
 
-#endif __YS_SHADERUNNER_HPP__
+#endif // __YS_SHADERUNNER_HPP__

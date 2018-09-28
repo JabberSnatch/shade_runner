@@ -57,6 +57,7 @@ set( UIBASE_SOURCES
 set(SHADERUNNER_DIR ${SOURCE_DIR}/shaderunner)
 set( SHADERUNNER_SOURCES
 	 ${SHADERUNNER_DIR}/shaderunner.cc
+	 ${SHADERUNNER_DIR}/shader_cache.cc
 	 )
 
 set(WIN32_BOOTSTRAP_DIR ${SOURCE_DIR}/win32_bootstrap)

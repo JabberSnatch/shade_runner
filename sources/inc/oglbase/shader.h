@@ -11,9 +11,9 @@
 #ifndef __YS_OGL_SHADER_HPP__
 #define __YS_OGL_SHADER_HPP__
 
-#include <GL/glew.h>
-
 #include <vector>
+
+#include <GL/glew.h>
 
 #include "oglbase/handle.h"
 

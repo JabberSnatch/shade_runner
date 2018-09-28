@@ -10,12 +10,11 @@
 #include "shaderunner/shaderunner.h"
 
 #include <algorithm>
-#include <array>
 #include <cassert>
 #include <chrono>
 #include <iostream>
 #include <iterator>
-#include <vector>
+#include <set>
 
 #include <boost/numeric/conversion/cast.hpp>
 #include <GL/glew.h>
@@ -29,12 +28,11 @@
 
 #include "uibase/imguicontext.h"
 
+#include "shaderunner/shader_cache.h"
+
 #define SR_GLSL_VERSION "#version 330 core\n"
-#define SR_SL_ENTRY_POINT(entry_point) "#define SR_ENTRY_POINT " entry_point "\n"
 #define SR_SL_TIME_UNIFORM "iTime"
 #define SR_SL_RESOLUTION_UNIFORM "iResolution"
-#define SR_VERT_ENTRY_POINT "vertexMain"
-#define SR_FRAG_ENTRY_POINT "imageMain"
 
 /* [ DESIGN DRAFT ]
  * [X] utility
@@ -83,53 +81,11 @@ public:
 public:
 	Resolution_t resolution_;
 public:
-	enum class ShaderStage { kVertex = 0, kFragment, kCount };
-	static oglbase::ShaderSources_t const &KernelSuffix(ShaderStage _stage);
-	static GLenum ShaderStageToGLenum(ShaderStage _stage);
-	struct ShaderCache
-	{
-	public:
-		ShaderCache() = default;
-	public:
-		oglbase::ShaderPtr& operator[](ShaderStage _stage)
-		{
-			return cached_shaders_[static_cast<std::size_t>(_stage)];
-		}
-		oglbase::ShaderPtr const& operator[](ShaderStage _stage) const
-		{
-			return cached_shaders_[static_cast<std::size_t>(_stage)];
-		}
-		template <ShaderStage ... kStages>
-		oglbase::ShaderBinaries_t select() const
-		{
-			return oglbase::ShaderBinaries_t{
-				cached_shaders_[static_cast<std::size_t>(kStages)]...
-			};
-		}
-		oglbase::ShaderBinaries_t select(std::vector<ShaderStage> const &_stages) const
-		{
-			oglbase::ShaderBinaries_t result{};
-			std::transform(_stages.cbegin(), _stages.cend(), std::back_inserter(result),
-						   [this](ShaderStage const _stage) {
-				return static_cast<GLuint>(cached_shaders_[static_cast<std::size_t>(_stage)]);
-			});
-			return result;
-		}
-		operator oglbase::ShaderBinaries_t() const
-		{
-			return oglbase::ShaderBinaries_t(cached_shaders_.cbegin(),
-											 cached_shaders_.cend());
-		}
-	public:
-		using ShadersContainer_t =
-			std::array<oglbase::ShaderPtr, static_cast<std::size_t>(ShaderStage::kCount)>;
-		ShadersContainer_t cached_shaders_;
-	};
+	std::set<ShaderStage> active_stages_;
 	ShaderCache shader_cache_;
 
-
 	static oglbase::ShaderPtr CompileKernel(ShaderStage _stage, oglbase::ShaderSources_t const &_kernel_sources);
-	bool BuildFKernel(std::string const &_sources);
+	bool BuildKernel(ShaderStage _stage, std::string const &_kernel_sources);
 	oglbase::ProgramPtr shader_program_;
 public:
 	GLuint dummy_vao_;
@@ -142,27 +98,20 @@ RenderContext::Impl_::Impl_() :
 	fkernel_file_{},
 	imgui_{},
 	resolution_{ 0.f, 0.f },
+	active_stages_{ShaderStage::kVertex, ShaderStage::kFragment},
 	shader_cache_{},
 	shader_program_{ 0u },
 	dummy_vao_{ 0u }
 {
 	{
-		static oglbase::ShaderSources_t const default_vkernel{
-			"const vec2 kTriVertices[] = vec2[3](vec2(-1.0, 3.0), vec2(-1.0, -1.0), vec2(3.0, -1.0)); void " SR_VERT_ENTRY_POINT "(inout vec4 vert_position) { vert_position = vec4(kTriVertices[gl_VertexID], 0.0, 1.0); }\n"
-		};
-		shader_cache_[ShaderStage::kVertex] =
-			CompileKernel(ShaderStage::kVertex, default_vkernel);
+		for (ShaderStage stage : active_stages_)
+		{
+			shader_cache_[stage] = CompileKernel(stage, DefaultKernel(stage));
+			assert(shader_cache_[stage]);
+		}
 
-		static oglbase::ShaderSources_t const default_fkernel{
-			"void " SR_FRAG_ENTRY_POINT "(inout vec4 frag_color, vec2 frag_coord) { frag_color = vec4(1.0 - float(gl_PrimitiveID), 0.0, 1.0, 1.0); } \n"
-		};
-		shader_cache_[ShaderStage::kFragment] =
-			CompileKernel(ShaderStage::kFragment, default_fkernel);
-
-		assert(shader_cache_[ShaderStage::kVertex]);
-		assert(shader_cache_[ShaderStage::kFragment]);
 		oglbase::ShaderBinaries_t const shader_binaries =
-			shader_cache_.select<ShaderStage::kVertex, ShaderStage::kFragment>();
+			shader_cache_.select(active_stages_);
 		shader_program_ = oglbase::LinkProgram(shader_binaries);
 		assert(shader_program_);
 	}
@@ -191,7 +140,7 @@ RenderContext::Impl_::FKernelUpdate(float const _increment)
 		if (fkernel_file_available && fkernel_file_.HasChanged())
 		{
 			std::cout << "fkernel file changed, building.." << std::endl;
-			BuildFKernel(fkernel_file_.ReadAll());
+			BuildKernel(ShaderStage::kFragment, fkernel_file_.ReadAll());
 		}
 		else if (!fkernel_file_available)
 		{
@@ -203,48 +152,6 @@ RenderContext::Impl_::FKernelUpdate(float const _increment)
 			std::cout << "compiled fkernel is up to date" << std::endl;
 #endif
 		}
-	}
-}
-
-oglbase::ShaderSources_t const &
-RenderContext::Impl_::KernelSuffix(ShaderStage _stage)
-{
-	switch (_stage)
-	{
-	case ShaderStage::kVertex:
-	{
-		static oglbase::ShaderSources_t const kKernelSuffix{
-			"\n",
-			SR_SL_ENTRY_POINT(SR_VERT_ENTRY_POINT),
-			#include "shaders/entry_point.vert.h"
-		};
-		return kKernelSuffix;
-	}
-	case ShaderStage::kFragment:
-	{
-		static oglbase::ShaderSources_t const kKernelSuffix{
-			"\n",
-			SR_SL_ENTRY_POINT(SR_FRAG_ENTRY_POINT),
-			#include "shaders/entry_point.frag.h"
-		};
-		return kKernelSuffix;
-	}
-	default:
-	{
-		static oglbase::ShaderSources_t const kEmptySuffix{};
-		return kEmptySuffix;
-	}
-	}
-}
-
-GLenum
-RenderContext::Impl_::ShaderStageToGLenum(ShaderStage _stage)
-{
-	switch (_stage)
-	{
-	case ShaderStage::kVertex: return GL_VERTEX_SHADER;
-	case ShaderStage::kFragment: return GL_FRAGMENT_SHADER;
-	default: return static_cast<GLenum>(0u);
 	}
 }
 
@@ -268,21 +175,22 @@ RenderContext::Impl_::CompileKernel(ShaderStage _stage, oglbase::ShaderSources_t
 }
 
 bool
-RenderContext::Impl_::BuildFKernel(std::string const &_sources)
+RenderContext::Impl_::BuildKernel(ShaderStage _stage, std::string const &_sources)
 {
-	oglbase::ShaderSources_t kernel_sources{ _sources.c_str() };
-	oglbase::ShaderPtr compiled_fshader = CompileKernel(ShaderStage::kFragment, kernel_sources);
-	if (!compiled_fshader) return false;
+	if (active_stages_.find(_stage) == active_stages_.end()) return false;
 
-	assert(shader_cache_[ShaderStage::kVertex]);
-	oglbase::ShaderBinaries_t const shader_binaries{
-		shader_cache_[ShaderStage::kVertex],
-		compiled_fshader
-	};
+	oglbase::ShaderSources_t const kernel_sources{_sources.c_str()};
+	oglbase::ShaderPtr compiled_shader = CompileKernel(_stage, kernel_sources);
+	if (!compiled_shader) return false;
+
+	oglbase::ShaderBinaries_t shader_binaries{compiled_shader};
+	for (ShaderStage active_stage : active_stages_)
+		if (active_stage != _stage)
+			shader_binaries.emplace_back(shader_cache_[active_stage]);
 	oglbase::ProgramPtr linked_program = oglbase::LinkProgram(shader_binaries);
 	if (!linked_program) return false;
 
-	shader_cache_[ShaderStage::kFragment] = std::move(compiled_fshader);
+	shader_cache_[_stage] = std::move(compiled_shader);
 	shader_program_ = std::move(linked_program);
 	return true;
 }
@@ -355,7 +263,7 @@ RenderContext::WatchFKernelFile(char const *_path)
 {
 	impl_->fkernel_file_ = utility::File{ _path };
 	if (impl_->fkernel_file_.Exists())
-		impl_->BuildFKernel(impl_->fkernel_file_.ReadAll());
+		impl_->BuildKernel(ShaderStage::kFragment, {impl_->fkernel_file_.ReadAll()});
 }
 
 
