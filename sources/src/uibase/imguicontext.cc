@@ -30,9 +30,7 @@ ImGuiContext::ImGuiContext() :
 	io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
 
 	{
-		GLuint texture;
-		glGenTextures(1, &texture);
-		font_texture_.reset(texture);
+		glGenTextures(1, font_texture_.get());
 	}
 	{
 		glBindTexture(GL_TEXTURE_2D, font_texture_);

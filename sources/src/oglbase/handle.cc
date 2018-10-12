@@ -50,10 +50,30 @@ struct TextureDeleter
 	}
 };
 
+struct VAODeleter
+{
+	void operator()(GLuint _vao)
+	{
+		std::cout << "gl vao deleted " << _vao << std::endl;
+		glDeleteVertexArrays(1, &_vao);
+	}
+};
+
+struct BufferDeleter
+{
+	void operator()(GLuint _buffer)
+	{
+		std::cout << "gl buffer deleted " << _buffer << std::endl;
+		glDeleteBuffers(1, &_buffer);
+	}
+};
+
 
 template struct Handle<ProgramDeleter>;
 template struct Handle<ShaderDeleter>;
 template struct Handle<TextureDeleter>;
+template struct Handle<VAODeleter>;
+template struct Handle<BufferDeleter>;
 
 
 } // namespace oglbase

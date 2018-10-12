@@ -67,7 +67,6 @@ struct RenderContext::Impl_
 {
 public:
 	Impl_();
-	~Impl_();
 
 public:
 	utility::Clock exec_time_;
@@ -88,7 +87,7 @@ public:
 	bool BuildKernel(ShaderStage _stage, std::string const &_kernel_sources);
 	oglbase::ProgramPtr shader_program_;
 public:
-	GLuint dummy_vao_;
+	oglbase::VAOPtr dummy_vao_;
 };
 
 RenderContext::Impl_::Impl_() :
@@ -117,13 +116,8 @@ RenderContext::Impl_::Impl_() :
 	}
 
 	{
-		glGenVertexArrays(1, &dummy_vao_);
+		glGenVertexArrays(1, dummy_vao_.get());
 	}
-}
-
-RenderContext::Impl_::~Impl_()
-{
-	glDeleteVertexArrays(1, &dummy_vao_);
 }
 
 void

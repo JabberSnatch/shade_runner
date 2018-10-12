@@ -29,6 +29,7 @@ struct Handle
 	operator GLuint() const { return handle; }
 	operator bool() const { return handle != 0u; }
 	void reset(GLuint _h) { _delete(); handle = _h; }
+	GLuint* get() { return &handle; }
 private:
 	void _delete();
 	GLuint handle = 0u;
@@ -37,11 +38,14 @@ private:
 struct ProgramDeleter;
 struct ShaderDeleter;
 struct TextureDeleter;
+struct VAODeleter;
+struct BufferDeleter;
 
 using ProgramPtr = Handle<ProgramDeleter>;
 using ShaderPtr = Handle<ShaderDeleter>;
 using TexturePtr = Handle<TextureDeleter>;
-
+using VAOPtr = Handle<VAODeleter>;
+using BufferPtr = Handle<BufferDeleter>;
 
 } // namespace oglbase
 
