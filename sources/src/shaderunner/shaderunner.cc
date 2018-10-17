@@ -88,6 +88,7 @@ public:
 	oglbase::ProgramPtr shader_program_;
 public:
 	oglbase::VAOPtr dummy_vao_;
+	oglbase::BufferPtr test_vbo_;
 };
 
 RenderContext::Impl_::Impl_() :
@@ -100,8 +101,13 @@ RenderContext::Impl_::Impl_() :
 	active_stages_{ShaderStage::kVertex, ShaderStage::kFragment},
 	shader_cache_{},
 	shader_program_{ 0u },
-	dummy_vao_{ 0u }
+	dummy_vao_{ 0u },
+	test_vbo_{ 0u }
 {
+	{
+		glGenVertexArrays(1, dummy_vao_.get());
+	}
+
 	{
 		for (ShaderStage stage : active_stages_)
 		{
@@ -109,14 +115,29 @@ RenderContext::Impl_::Impl_() :
 			assert(shader_cache_[stage]);
 		}
 
+
+		{
+			glGenBuffers(1, test_vbo_.get());
+
+			static const float data[] = { 0.5f, -0.5f, 0.f, 0.5f, -0.5f, -0.5f };
+			glBindBuffer(GL_ARRAY_BUFFER, test_vbo_);
+			glBufferStorage(GL_ARRAY_BUFFER, 6*sizeof(float), data, 0);
+			glBindVertexArray(dummy_vao_);
+			glEnableVertexAttribArray(0);
+			glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, reinterpret_cast<GLvoid*>(0));
+			glBindBuffer(GL_ARRAY_BUFFER, 0u);
+			oglbase::PrintError(std::cout);
+		}
+
+		shader_cache_[ShaderStage::kVertex] = CompileKernel(ShaderStage::kVertex, {
+			"layout (location = 0) in vec2 position; void vertexMain(inout vec4 vert_position) { vert_position = vec4(position, 0.0, 1.0); }\n"
+		});
+
+
 		oglbase::ShaderBinaries_t const shader_binaries =
 			shader_cache_.select(active_stages_);
 		shader_program_ = oglbase::LinkProgram(shader_binaries);
 		assert(shader_program_);
-	}
-
-	{
-		glGenVertexArrays(1, dummy_vao_.get());
 	}
 }
 
