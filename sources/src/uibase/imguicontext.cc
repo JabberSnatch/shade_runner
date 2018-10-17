@@ -174,7 +174,7 @@ ImGuiContext::Render() const
 					 static_cast<GLvoid const *>(cmd_list.VtxBuffer.Data),
 					 GL_STREAM_DRAW);
 
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vao);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER,
 					 static_cast<GLsizeiptr>(cmd_list.IdxBuffer.Size) * sizeof(ImDrawIdx),
 					 static_cast<GLvoid const *>(cmd_list.IdxBuffer.Data),
