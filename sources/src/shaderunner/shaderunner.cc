@@ -57,6 +57,25 @@
  * [X] |- main
  */
 
+
+#if 0
+using VertexRawData_t = std::vector<float>;
+class DrawCallDesc
+{
+public:
+	DrawCallDesc(VertexRawData_t const &_source_data)
+	{
+		glGenVertexArrays(1, vao_.get());
+		glGenBuffers(1, vbo_.get());
+
+		// TODO
+	}
+private:
+	oglbase::VAOPtr vao_ = 0u;
+	oglbase::BufferPtr vbo_ = 0u;
+};
+#endif
+
 namespace sr {
 
 using Resolution_t = std::array<float, 2>;
@@ -115,7 +134,7 @@ RenderContext::Impl_::Impl_() :
 			assert(shader_cache_[stage]);
 		}
 
-
+#if 0
 		{
 			glGenBuffers(1, test_vbo_.get());
 
@@ -132,7 +151,7 @@ RenderContext::Impl_::Impl_() :
 		shader_cache_[ShaderStage::kVertex] = CompileKernel(ShaderStage::kVertex, {
 			"layout (location = 0) in vec2 position; void vertexMain(inout vec4 vert_position) { vert_position = vec4(position, 0.0, 1.0); }\n"
 		});
-
+#endif
 
 		oglbase::ShaderBinaries_t const shader_binaries =
 			shader_cache_.select(active_stages_);
@@ -236,9 +255,7 @@ RenderContext::RenderFrame()
 
 	static GLfloat const clear_color[]{ 0.5f, 0.5f, 0.5f, 1.f };
 	glClearBufferfv(GL_COLOR, 0, clear_color);
-
 	glUseProgram(impl_->shader_program_);
-	glBindVertexArray(impl_->dummy_vao_);
 
 	{
 		int const time_loc = glGetUniformLocation(impl_->shader_program_, SR_SL_TIME_UNIFORM);
@@ -255,10 +272,11 @@ RenderContext::RenderFrame()
 		}
 	}
 
+	glBindVertexArray(impl_->dummy_vao_);
 	glDrawArrays(GL_TRIANGLES, 0, 3);
-	start_over = start_over && (glGetError() == GL_NO_ERROR);
-
 	glBindVertexArray(0u);
+
+	start_over = start_over && (glGetError() == GL_NO_ERROR);
 	glUseProgram(0u);
 
 #ifdef SR_SINGLE_BUFFERING

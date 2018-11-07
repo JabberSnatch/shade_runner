@@ -9,6 +9,7 @@
 
 #include "oglbase/error.h"
 
+#include <algorithm>
 #include <cassert>
 #include <iostream>
 #include <fstream>
@@ -61,57 +62,67 @@ char const* enum_string(GLenum const _value)
 
 // =============================================================================
 
-struct GetShaderivFunc
+struct ShaderInfoFuncs
 {
-	void operator()(GLuint _shader, GLenum _status_flag, GLint* _result) const
+	void getiv(GLuint _shader, GLenum _status_flag, GLint* _result) const
 	{
 		glGetShaderiv(_shader, _status_flag, _result);
 	}
-};
-
-struct GetProgramivFunc
-{
-	void operator()(GLuint _shader, GLenum _status_flag, GLint* _result) const
+	void getInfoLog(GLuint _shader, GLsizei _max_length, GLsizei* _length, GLchar* _info_log) const
 	{
-		glGetProgramiv(_shader, _status_flag, _result);
+		glGetShaderInfoLog(_shader, _max_length, _length, _info_log);
 	}
 };
 
-template <typename GetivFunc, GLenum kStatusEnum>
+struct ProgramInfoFuncs
+{
+	void getiv(GLuint _shader, GLenum _status_flag, GLint* _result) const
+	{
+		glGetProgramiv(_shader, _status_flag, _result);
+	}
+	void getInfoLog(GLuint _shader, GLsizei _max_length, GLsizei* _length, GLchar* _info_log) const
+	{
+		glGetProgramInfoLog(_shader, _max_length, _length, _info_log);
+	}
+};
+
+template <typename InfoFuncs, GLenum kStatusEnum>
 bool
 GetShaderStatus(GLuint const _handle)
 {
 	GLint success = GL_FALSE;
-	GetivFunc{}(_handle, kStatusEnum, &success);
+	InfoFuncs{}.getiv(_handle, kStatusEnum, &success);
 	return success != GL_TRUE;
 }
 
-template <typename GetivFunc>
+template <typename InfoFuncs>
 void
 ForwardShaderLog(GLuint const _handle)
 {
 	GLsizei log_size = 0;
-	GetivFunc{}(_handle, GL_INFO_LOG_LENGTH, &log_size);
+	InfoFuncs{}.getiv(_handle, GL_INFO_LOG_LENGTH, &log_size);
 	assert(log_size != 0);
+	GLint max_debug_message_length;
+	glGetIntegerv(GL_MAX_DEBUG_MESSAGE_LENGTH, &max_debug_message_length);
 	char* const info_log = new char[log_size];
-	glGetShaderInfoLog(_handle, log_size, NULL, info_log);
+	InfoFuncs{}.getInfoLog(_handle, log_size, NULL, info_log);
 	glDebugMessageInsert(GL_DEBUG_SOURCE_APPLICATION,
 						 GL_DEBUG_TYPE_ERROR,
 						 0u,
 						 GL_DEBUG_SEVERITY_LOW,
-						 log_size, info_log);
+						 std::min(log_size, max_debug_message_length-1), info_log);
 	delete[] info_log;
 }
 
 template
-bool GetShaderStatus<GetShaderivFunc, GL_COMPILE_STATUS>(GLuint const);
+bool GetShaderStatus<ShaderInfoFuncs, GL_COMPILE_STATUS>(GLuint const);
 template
-bool GetShaderStatus<GetProgramivFunc, GL_LINK_STATUS>(GLuint const);
+bool GetShaderStatus<ProgramInfoFuncs, GL_LINK_STATUS>(GLuint const);
 
 template
-void ForwardShaderLog<oglbase::GetShaderivFunc>(GLuint const);
+void ForwardShaderLog<oglbase::ShaderInfoFuncs>(GLuint const);
 template
-void ForwardShaderLog<oglbase::GetProgramivFunc>(GLuint const);
+void ForwardShaderLog<oglbase::ProgramInfoFuncs>(GLuint const);
 
 
 GLenum PrintError(std::ostream& _ostream)

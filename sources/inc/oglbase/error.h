@@ -24,12 +24,12 @@ char const* enum_string(GLenum const _value);
 
 // =============================================================================
 
-struct GetShaderivFunc;
-struct GetProgramivFunc;
+struct ShaderInfoFuncs;
+struct ProgramInfoFuncs;
 
-template <typename GetivFunc, GLenum kStatusEnum>
+template <typename InfoFuncs, GLenum kStatusEnum>
 bool GetShaderStatus(GLuint const _handle);
-template <typename GetivFunc>
+template <typename InfoFuncs>
 void ForwardShaderLog(GLuint const _handle);
 
 GLenum PrintError(std::ostream& _ostream);

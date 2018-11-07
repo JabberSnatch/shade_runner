@@ -24,9 +24,9 @@ CompileShader(GLenum _type, ShaderSources_t &_sources)
 	ShaderPtr result{ glCreateShader(_type) };
 	glShaderSource(result, source_count, _sources.data(), NULL);
 	glCompileShader(result);
-	if (GetShaderStatus<GetShaderivFunc, GL_COMPILE_STATUS>(result))
+	if (GetShaderStatus<ShaderInfoFuncs, GL_COMPILE_STATUS>(result))
 	{
-		ForwardShaderLog<GetShaderivFunc>(result);
+		ForwardShaderLog<ShaderInfoFuncs>(result);
 		result.reset(0u);
 	}
 	return result;
@@ -40,9 +40,9 @@ LinkProgram(ShaderBinaries_t const &_binaries)
 		glAttachShader(result, _shader);
 	});
 	glLinkProgram(result);
-	if (GetShaderStatus<GetProgramivFunc, GL_LINK_STATUS>(result))
+	if (GetShaderStatus<ProgramInfoFuncs, GL_LINK_STATUS>(result))
 	{
-		ForwardShaderLog<GetProgramivFunc>(result);
+		ForwardShaderLog<ProgramInfoFuncs>(result);
 		result.reset(0u);
 	}
 	return result;
