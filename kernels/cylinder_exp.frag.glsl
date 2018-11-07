@@ -22,5 +22,5 @@ void imageMain(inout vec4 frag_color, vec2 frag_coord)
 {
 	vec3 p = vec3((((frag_coord / iResolution) - 0.5) * 5.0), sin(iTime));
 
-	frag_color.y = -sdTruncatedCylinder(p, 1.5, 5.0);
+	frag_color.y = -sdTruncatedCylinder(p, 1.5, 5.0) / 5.0;
 }
