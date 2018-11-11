@@ -51,7 +51,11 @@ float scene(vec3 p)
 
 vec3 normal(vec3 p)
 {
-	return vec3(0.0);
+	float delta = 0.0001;
+	return normalize(
+		   vec3(scene(p + vec3(delta, 0.0, 0.0)) - scene(p - vec3(delta, 0.0, 0.0)),
+		   		scene(p + vec3(0.0, delta, 0.0)) - scene(p - vec3(0.0, delta, 0.0)),
+				scene(p + vec3(0.0, 0.0, delta)) - scene(p - vec3(0.0, 0.0, delta))));
 }
 
 // ================================================================================
@@ -109,15 +113,17 @@ void imageMain(inout vec4 frag_color, vec2 frag_coord)
 	frag_color.xyz = mix(
 				   bg_color, position,
 				   step(distance, kDistanceThreshold));
-#endif
+#else
 	if (hit)
 	{
-		frag_color.xyz = position;
+		//frag_color.xyz = position;
+		frag_color.xyz = abs(normal(position));
 	}
 	else
 	{
 		frag_color.xyz = bg_color;
 	}
+#endif
 
 	//frag_color.xyz = mix(vec3(0.5, 0.5, 0.5), frag_color.xyz, step(float(rm_step), float(kMaxStep)));
 }
