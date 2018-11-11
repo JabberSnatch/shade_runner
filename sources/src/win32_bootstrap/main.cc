@@ -50,10 +50,6 @@
 #include "oglbase/error.h"
 #include "shaderunner/shaderunner.h"
 
-#ifdef _DEBUG
-#define SR_GL_DEBUG_CONTEXT
-#endif
-
 namespace WXtk {
 template <typename T> void unref_param(T&&) {}
 }

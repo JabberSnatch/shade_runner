@@ -96,22 +96,32 @@ GetShaderStatus(GLuint const _handle)
 }
 
 template <typename InfoFuncs>
+std::string GetShaderLog(GLuint const _handle)
+{
+	GLsizei log_size = 0;
+	InfoFuncs{}.getiv(_handle,GL_INFO_LOG_LENGTH, &log_size);
+	assert(log_size != 0);
+	char* const info_log = new char[log_size];
+	InfoFuncs{}.getInfoLog(_handle, log_size, NULL, info_log);
+	std::string const result(info_log);
+	delete[] info_log;
+	return result;
+}
+
+template <typename InfoFuncs>
 void
 ForwardShaderLog(GLuint const _handle)
 {
-	GLsizei log_size = 0;
-	InfoFuncs{}.getiv(_handle, GL_INFO_LOG_LENGTH, &log_size);
-	assert(log_size != 0);
+	std::string const log_string = GetShaderLog<InfoFuncs>(_handle);
 	GLint max_debug_message_length;
 	glGetIntegerv(GL_MAX_DEBUG_MESSAGE_LENGTH, &max_debug_message_length);
-	char* const info_log = new char[log_size];
-	InfoFuncs{}.getInfoLog(_handle, log_size, NULL, info_log);
+	GLint const log_length = std::min(static_cast<GLint>(log_string.size()), max_debug_message_length-1);
 	glDebugMessageInsert(GL_DEBUG_SOURCE_APPLICATION,
 						 GL_DEBUG_TYPE_ERROR,
 						 0u,
 						 GL_DEBUG_SEVERITY_LOW,
-						 std::min(log_size, max_debug_message_length-1), info_log);
-	delete[] info_log;
+						 log_length,
+						 log_string.c_str());
 }
 
 template
@@ -120,9 +130,14 @@ template
 bool GetShaderStatus<ProgramInfoFuncs, GL_LINK_STATUS>(GLuint const);
 
 template
-void ForwardShaderLog<oglbase::ShaderInfoFuncs>(GLuint const);
+std::string GetShaderLog<ShaderInfoFuncs>(GLuint const _handle);
 template
-void ForwardShaderLog<oglbase::ProgramInfoFuncs>(GLuint const);
+std::string GetShaderLog<ProgramInfoFuncs>(GLuint const _handle);
+
+template
+void ForwardShaderLog<ShaderInfoFuncs>(GLuint const);
+template
+void ForwardShaderLog<ProgramInfoFuncs>(GLuint const);
 
 
 GLenum PrintError(std::ostream& _ostream)

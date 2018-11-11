@@ -10,6 +10,7 @@
 #include "oglbase/shader.h"
 
 #include <algorithm>
+#include <iostream>
 
 #include <boost/numeric/conversion/cast.hpp>
 
@@ -26,7 +27,11 @@ CompileShader(GLenum _type, ShaderSources_t &_sources)
 	glCompileShader(result);
 	if (GetShaderStatus<ShaderInfoFuncs, GL_COMPILE_STATUS>(result))
 	{
+#ifdef SR_GL_DEBUG_CONTEXT
 		ForwardShaderLog<ShaderInfoFuncs>(result);
+#else
+		std::cout << GetShaderLog<ShaderInfoFuncs>(result) << std::endl;
+#endif
 		result.reset(0u);
 	}
 	return result;
@@ -42,7 +47,11 @@ LinkProgram(ShaderBinaries_t const &_binaries)
 	glLinkProgram(result);
 	if (GetShaderStatus<ProgramInfoFuncs, GL_LINK_STATUS>(result))
 	{
+#ifdef SR_GL_DEBUG_CONTEXT
 		ForwardShaderLog<ProgramInfoFuncs>(result);
+#else
+		std::cout << GetShaderLog<ProgramInfoFuncs>(result) << std::endl;
+#endif
 		result.reset(0u);
 	}
 	return result;

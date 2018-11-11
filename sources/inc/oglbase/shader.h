@@ -26,7 +26,6 @@ using ShaderBinaries_t = std::vector<GLuint>;
 ShaderPtr CompileShader(GLenum _type, ShaderSources_t &_sources);
 ProgramPtr LinkProgram(ShaderBinaries_t const &_binaries);
 
-
 } // namespace oglbase
 
 #endif // __YS_OGL_SHADER_HPP__

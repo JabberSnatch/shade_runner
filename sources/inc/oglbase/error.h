@@ -17,6 +17,11 @@
 #include <iostream>
 
 
+#ifdef _DEBUG
+#define SR_GL_DEBUG_CONTEXT
+#endif
+
+
 namespace oglbase {
 
 
@@ -29,6 +34,9 @@ struct ProgramInfoFuncs;
 
 template <typename InfoFuncs, GLenum kStatusEnum>
 bool GetShaderStatus(GLuint const _handle);
+template <typename InfoFuncs>
+std::string GetShaderLog(GLuint const _handle);
+
 template <typename InfoFuncs>
 void ForwardShaderLog(GLuint const _handle);
 
