@@ -1,4 +1,28 @@
 // ================================================================================
+// MATHS
+// ================================================================================
+
+#define PI 3.1415926535
+
+mat3 rotateX(float alpha)
+{
+	return mat3(
+		1.0, 0.0, 0.0,
+		0.0, cos(alpha), sin(alpha),
+		0.0, -sin(alpha), cos(alpha)
+	);
+}
+
+mat3 rotateY(float alpha)
+{
+	return mat3(
+		cos(alpha), 0.0, -sin(alpha),
+		0.0, 1.0, 0.0,
+		sin(alpha), 0.0, cos(alpha)
+	);
+}
+
+// ================================================================================
 // PRIMITIVES
 // ================================================================================
 
@@ -26,27 +50,34 @@ float sdSphere(vec3 p, float r)
 	return length(p) - r;
 }
 
-vec3 sdTruncatedCylinder_normal(vec3 p, float r, float h)
+vec3 cylinder_position(vec3 p)
 {
-	float cylinder = sdCylinder(p, r);
-	float bottom = sdPlane(p, vec3(0.0, -1.0, 0.0), vec3(0.0, h/2.0, 0.0));
-	float top = sdPlane(p, vec3(0.0, 1.0, 0.0), vec3(0.0, -h/2.0, 0.0));
-	float cylinder_closer_bottom = step(cylinder, bottom);
-	float bottom_closer_top = step(bottom, top);
-	float top_closer_cylinder = step(top, cylinder);
-	// cylinder -> A && !C
-	// bottom -> B && !A
-	// top -> C && !B
-	return vec3(0.0);
+	float x_angle = mod(iTime * 90.0, 360.0) * PI / 180.0;
+	float y_angle = mod(iTime * 72.0, 360.0) * PI / 180.0;
+	vec3 cylinder_local_pos = (rotateX(x_angle) * rotateY(y_angle) * (p - vec3(0.0, 0.0, 5.0)));
+	return cylinder_local_pos;
+}
+
+vec3 sphere_position(vec3 p)
+{
+	return p - vec3(cos(iTime), 0.0, sin(iTime)) * 7.0;
 }
 
 float scene(vec3 p)
 {
-	float A = sdTruncatedCylinder(p - vec3(cos(iTime) * 1.0, sin(iTime) * -1.5, 5.0), 1.0, (cos(iTime * 2.0) + 1.0) * 1.0 + 0.1);
-
-	float B = sdSphere(p - vec3(cos(iTime), 0.0, sin(iTime)) * 7.0, 1.0);
-
+	float A = sdTruncatedCylinder(cylinder_position(p), 1.0, 2.0);
+	float B = sdSphere(sphere_position(p), 1.0);
 	return min(A, B);
+}
+
+vec3 scene_color(vec3 p)
+{
+	vec3 cyl_pos = cylinder_position(p);
+	float angle = atan(cyl_pos.x, cyl_pos.z);
+	float red_step = step(0.1 * PI, mod(angle, 0.2 * PI));
+	vec3 cylinder_color = red_step * vec3(0.97, 0.28, 0.09) + (1.0 - red_step) * vec3(1.0);
+
+	return cylinder_color;
 }
 
 vec3 normal(vec3 p)
@@ -80,13 +111,13 @@ vec3 compute_ray_plane(vec3 half_diagonal, vec2 clip_coord)
 // MAIN
 // ================================================================================
 
-const int kMaxStep = 200;
+const int kMaxStep = 150;
 const float kDistanceThreshold = 0.01;
 
 void imageMain(inout vec4 frag_color, vec2 frag_coord)
 {
 	float aspect_ratio = iResolution.y / iResolution.x;
-	float fov = 90.0 * 3.1415926535 / 180.0;
+	float fov = 90.0 * PI / 180.0;
 	float near = 0.1;
 	vec3 half_diagonal = target_half_diagonal_hfov(near, fov, aspect_ratio);
 	vec2 clip_coord = ((frag_coord / iResolution) - 0.5) * 2.0;
@@ -98,26 +129,34 @@ void imageMain(inout vec4 frag_color, vec2 frag_coord)
 	bool hit = false;
 	while (distance > kDistanceThreshold && rm_step < kMaxStep)
 	{
-		position += ray * distance * 0.9;
+		position += ray * distance;
 		distance = scene(position);
 		rm_step++;
 	}
 
 	hit = distance <= kDistanceThreshold;
 
-	vec3 bg_color = vec3(0.2, 0.2, 0.2);
+	vec3 bg_color = vec3(0.2);
 #if 0
+	float Li = dot(normal(position), normalize(vec3(0.0, 0.5, -0.5)));
+	vec3 color = Li * scene_color(position);
+
 	frag_color.xyz = mix(
-				   position, bg_color,
-				   step(kDistanceThreshold, distance));
-	frag_color.xyz = mix(
-				   bg_color, position,
-				   step(distance, kDistanceThreshold));
+// NOTE: ???????
+// Changing x seems to change y even though they aren't related. How is this possible
+#if 1
+		color,
+#else
+		vec3(0.0, 1.0, 0.0),
+#endif
+		bg_color,
+		step(kDistanceThreshold, distance));
 #else
 	if (hit)
 	{
-		//frag_color.xyz = position;
-		frag_color.xyz = abs(normal(position));
+		float Li = dot(normal(position), normalize(vec3(0.0, 0.5, -0.5)));
+		vec3 base_color = scene_color(position);
+		frag_color.xyz = base_color * Li;
 	}
 	else
 	{
