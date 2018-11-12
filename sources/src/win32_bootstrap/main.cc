@@ -49,6 +49,7 @@
 
 #include "oglbase/error.h"
 #include "shaderunner/shaderunner.h"
+#include "uibase/imguicontext.h"
 
 namespace WXtk {
 template <typename T> void unref_param(T&&) {}
@@ -99,6 +100,7 @@ constexpr int boot_height = 720;
 
 Win32Handles handles{};
 std::unique_ptr<sr::RenderContext> sr_context{};
+std::unique_ptr<uibase::ImGuiContext> ui_context{};
 
 int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 					 _In_ HINSTANCE hPrevInstance,
@@ -260,11 +262,13 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 	oglbase::DebugMessageControl<> debugMessageControl{};
 #endif
 	sr_context.reset(new sr::RenderContext());
+	ui_context.reset(new uibase::ImGuiContext());
 	if (__argc > 1)
 	{
 		sr_context->WatchFKernelFile(__argv[1]);
 	}
 	sr_context->SetResolution(boot_width, boot_height);
+	ui_context->SetResolution(boot_width, boot_height);
 	wglMakeCurrent(handles.device_context, NULL);
 
 	{
@@ -303,6 +307,7 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 
 	wglMakeCurrent(handles.device_context, handles.gl_context);
 	sr_context.reset(nullptr);
+	ui_context.reset(nullptr);
 	wglMakeCurrent(handles.device_context, NULL);
 
 	FreeConsole();
@@ -411,6 +416,7 @@ LRESULT CALLBACK WndProc(_In_ HWND   hwnd,
 		{
 			ValidateRect(hwnd, NULL);
 		}
+		ui_context->Render();
 		::SwapBuffers(handles.device_context);
 		wglMakeCurrent(handles.device_context, NULL);
 	} break;
@@ -422,6 +428,7 @@ LRESULT CALLBACK WndProc(_In_ HWND   hwnd,
 		{
 			wglMakeCurrent(handles.device_context, handles.gl_context);
 			sr_context->SetResolution(width, height);
+			ui_context->SetResolution(width, height);
 			wglMakeCurrent(handles.device_context, NULL);
 		}
 	} break;

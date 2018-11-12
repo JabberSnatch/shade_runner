@@ -122,7 +122,6 @@ target_link_libraries( shaderunner
 					   PRIVATE
 					   utility
 					   oglbase
-					   uibase
 					   )
 
 # ______________________________________________________________________________

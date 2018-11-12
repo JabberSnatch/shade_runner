@@ -225,11 +225,11 @@ ImGuiContext::Render() const
 }
 
 void
-ImGuiContext::SetResolution(Resolution_t const &_resolution)
+ImGuiContext::SetResolution(int _width, int _height)
 {
 	ImGuiIO &io = ImGui::GetIO();
-	io.DisplaySize.x = _resolution[0];
-	io.DisplaySize.y = _resolution[1];
+	io.DisplaySize.x = boost::numeric_cast<float>(_width);
+	io.DisplaySize.y = boost::numeric_cast<float>(_height);
 }
 
 

@@ -26,8 +26,6 @@
 #include "oglbase/handle.h"
 #include "oglbase/shader.h"
 
-#include "uibase/imguicontext.h"
-
 #include "shaderunner/shader_cache.h"
 
 #define SR_GLSL_VERSION "#version 330 core\n"
@@ -76,8 +74,6 @@ public:
 	float fkernel_update_counter_ = 0.f;
 	void FKernelUpdate(float const _elapsed_time);
 public:
-	uibase::ImGuiContext imgui_;
-public:
 	Resolution_t resolution_;
 public:
 	std::set<ShaderStage> active_stages_;
@@ -96,7 +92,6 @@ RenderContext::Impl_::Impl_() :
 		FKernelUpdate(_dt);
 	}},
 	fkernel_file_{},
-	imgui_{},
 	resolution_{ 0.f, 0.f },
 	active_stages_{ShaderStage::kVertex, ShaderStage::kFragment},
 	shader_cache_{},
@@ -116,6 +111,7 @@ RenderContext::Impl_::Impl_() :
 		}
 
 
+#if 0
 		{
 			glGenBuffers(1, test_vbo_.get());
 
@@ -132,7 +128,7 @@ RenderContext::Impl_::Impl_() :
 		shader_cache_[ShaderStage::kVertex] = CompileKernel(ShaderStage::kVertex, {
 			"layout (location = 0) in vec2 position; void vertexMain(inout vec4 vert_position) { vert_position = vec4(position, 0.0, 1.0); }\n"
 		});
-
+#endif
 
 		oglbase::ShaderBinaries_t const shader_binaries =
 			shader_cache_.select(active_stages_);
@@ -265,10 +261,6 @@ RenderContext::RenderFrame()
 	glFlush();
 #endif
 
-	{
-		impl_->imgui_.Render();
-	}
-
 	return start_over;
 }
 
@@ -287,7 +279,6 @@ RenderContext::SetResolution(int _width, int _height)
 {
 	impl_->resolution_ = { boost::numeric_cast<float>(_width),
 						   boost::numeric_cast<float>(_height) };
-	impl_->imgui_.SetResolution(impl_->resolution_);
 	glViewport(0, 0, _width, _height);
 }
 
