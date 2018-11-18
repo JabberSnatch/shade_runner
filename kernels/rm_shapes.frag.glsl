@@ -60,7 +60,7 @@ vec3 cylinder_position(vec3 p)
 
 vec3 sphere_position(vec3 p)
 {
-	return p - vec3(cos(iTime), 0.0, sin(iTime)) * 7.0;
+	return p - vec3(cos(iTime), 0.0, abs(sin(iTime))) * 7.0;
 }
 
 float scene(vec3 p)
@@ -106,6 +106,23 @@ vec3 compute_ray_plane(vec3 half_diagonal, vec2 clip_coord)
 	return normalize(target);
 }
 
+// ================================================================================
+// LIGHTING
+// ================================================================================
+
+float fresnel_term(vec3 l, vec3 n, float ior_out, float ior_in)
+{
+	float c = abs(dot(-l, n));
+	float g_squared = ((ior_in * ior_in) / (ior_out * ior_out)) - 1.0 + (c * c);
+	if (g_squared < 0.0) return 1.0;
+	float g = sqrt(g_squared);
+	float gmc = g - c;
+	float gpc = g + c;
+	float T0 = c*gpc - 1.0;
+	float T1 = c*gmc + 1.0;
+	float result = 0.5 * ((gmc * gmc)/(gpc * gpc)) * (1.0 + ((T0 * T0) / (T1 * T1)));
+	return result;
+}
 
 // ================================================================================
 // MAIN
@@ -154,9 +171,12 @@ void imageMain(inout vec4 frag_color, vec2 frag_coord)
 #else
 	if (hit)
 	{
-		float Li = dot(normal(position), normalize(vec3(0.0, 0.5, -0.5)));
+		vec3 n = normal(position);
+		vec3 l = normalize(vec3(cos(iTime) * 1.0, 0.5, sin(iTime) * 1.0));
+		float Li = dot(n, l);
+		float F = fresnel_term(l, n, 1.0, 1.5);
 		vec3 base_color = scene_color(position);
-		frag_color.xyz = base_color * Li;
+		frag_color.xyz = base_color * (Li * (1.0 + F));
 	}
 	else
 	{
