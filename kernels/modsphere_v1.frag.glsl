@@ -28,28 +28,22 @@ mat2 rot2(float theta)
 
 float scene(vec3 in_pos)
 {
-	//pos -= vec3(0.0, 0.0, 1.0);
-	//return sdSphere(pos, 0.2);
 	float dist = 65535.0;
 	for (float i = -3.0; i <= 3.0; i+=1.0)
 	{
 		vec3 pos = in_pos;
 		pos.x += ((step(abs(i), 1.0) * 2.0) - 1.0) * i * 0.09;
 		pos.y += i * 0.05 * (sin(iTime) + sin(iTime * 3.0) * 0.5 + sin(iTime * 15.0) * 0.1);
-		pos.z += mod(pos.z - 0.5, 0.2 * (sin(iTime * 0.3) * 0.25 + 1.5));
-		//pos.x = mod(pos.x, 0.1 * sin(iTime));
-		//pos.y = mod(pos.y, 0.2 * (sin(gl_FragCoord.x * 2.0 / iResolution.x) + sin(iTime * 0.2)));
-		//pos.xz = rot2(iTime) * pos.xz;
-		//pos.yz = rot2(iTime * 0.1) * pos.yz;
+		//pos.z += mod(pos.z - 0.5, (0.2 + 0.05 * ((sin(iTime * 3.14 * 0.5) * 0.5))));
 		dist = min(dist, sdSphere(pos - vec3(0.0, 0.0, 1.0), 0.05));//vec3(x, pos.yz), 0.2));
 	}
 	for (float i = -2.0; i <= 2.0; i+=1.0)
 	{
 		vec3 pos = in_pos;
-		pos.z -= (sin(iTime) * 0.5 + 0.5) * 0.5;
+		pos.z -= (sin(iTime * 3.14 * 0.33) * 0.5 + 1.0) * 0.5;
 		pos.y += ((step(abs(i), 1.0) * 2.0) - 1.0) * i * 0.09;
 		pos.x -= i * 0.05 * (sin(iTime) + sin(iTime * 3.0) * 0.5 + sin(iTime * 15.0) * 0.1);
-		pos.z += mod(pos.z - 0.5, 0.2 * (sin(iTime * 0.3) * 0.25 + 1.5));
+		pos.z += mod(pos.z - 0.5, (0.2 + 0.05 * ((sin(iTime * 3.14 * 0.33) * 0.5))));
 		dist = min(dist, sdSphere(pos - vec3(0.0, 0.0, 1.0), 0.05));//vec3(x, pos.yz), 0.2));
 	}
 	return dist;
