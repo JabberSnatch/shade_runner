@@ -1,39 +1,20 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.11 FATAL_ERROR)
+
+project(shaderunner)
 
 option(WARN_VERBOSE "Enable highest warning level and disable warnings as errors" OFF)
 
-
 set(SOURCE_DIR sources/src)
-set(INCLUDE_DIR sources/inc)
 set(LIB_DIR lib)
 
 # ==============================================================================
-
-set( LIB_INCLUDE_DIR
-	 ${LIB_DIR}/glew/include/
-	 ${LIB_DIR}/boost/
-	 ${LIB_DIR}/imgui/
-	 )
-
-function(_FIND_GL_LIBRARIES OUT)
-	find_package(OpenGL REQUIRED)
-	find_library(GLEW_LIB glew32 PATHS ${LIB_DIR}/glew/lib/Release/x64/)
-	set(${OUT} "${GLEW_LIB}" ${OPENGL_gl_LIBRARY} PARENT_SCOPE)
-endfunction()
-
+include(cmake/external/boost.cmake)
 # ==============================================================================
-
-set(IMGUI_DIR ${LIB_DIR}/imgui)
-set( IMGUI_SOURCES
-	 ${IMGUI_DIR}/imgui.cpp
-	 ${IMGUI_DIR}/imgui_demo.cpp
-	 ${IMGUI_DIR}/imgui_draw.cpp
-	 )
-
-project(imgui)
-include_directories(${IMGUI_DIR})
-add_library(imgui STATIC ${IMGUI_SOURCES})
-
+find_package(OpenGL REQUIRED)
+# ==============================================================================
+include(cmake/external/glew.cmake)
+# ==============================================================================
+include(cmake/external/imgui.cmake)
 # ==============================================================================
 
 set(UTILITY_DIR ${SOURCE_DIR}/utility)
@@ -67,86 +48,102 @@ set( WIN32_BOOTSTRAP_SOURCES
 
 # ==============================================================================
 
-function(_COMMON_PROJECT_OPTIONS)
-	include_directories(${INCLUDE_DIR} ${LIB_INCLUDE_DIR})
-	link_directories(${LIB_DIR}/boost/lib/)
+function(_COMMON_PROJECT_OPTIONS TARGET_NAME)
+	target_include_directories(${TARGET_NAME}
+		PRIVATE
+			sources/inc
+	)
+	target_link_libraries(${TARGET_NAME}
+		PRIVATE
+			Boost::boost
+			Boost::filesystem
+	)
 
-	add_compile_options(-std:c++latest)
+	if(MSVC)
+		add_compile_options(-std:c++latest)
+	endif(MSVC)
 
 	if (WARN_VERBOSE)
-	add_compile_options(-Wall)
+		add_compile_options(-Wall)
 	else()
-	add_compile_options(-W4 -WX)
+		add_compile_options(-W4 -WX)
 	endif(WARN_VERBOSE)
 endfunction()
 
 # ==============================================================================
 
-project(utility)
-
-_common_project_options()
 add_library(utility STATIC ${UTILITY_SOURCES})
+_common_project_options(utility)
 
 # ______________________________________________________________________________
 
-project(oglbase)
-
-_common_project_options()
-_find_gl_libraries(GL_LIBRARIES)
 add_library(oglbase STATIC ${OGLBASE_SOURCES})
-target_link_libraries( oglbase
-					   PUBLIC
-					   "${GL_LIBRARIES}"
-					   )
+target_link_libraries(oglbase
+	PUBLIC
+		OpenGL::GL
+		GLEW::GLEW
+)
+_common_project_options(oglbase)
 
 # ______________________________________________________________________________
 
-project(uibase)
-
-_common_project_options()
 add_library(uibase STATIC ${UIBASE_SOURCES})
-target_link_libraries( uibase
-					   PUBLIC
-					   imgui
-					   PRIVATE
-					   oglbase
-					   )
+target_link_libraries(uibase
+	PUBLIC
+		imgui::imgui
+	PRIVATE
+		oglbase
+)
+_common_project_options(uibase)
 
 # ______________________________________________________________________________
 
-project(shaderunner)
-
-_common_project_options()
 add_library(shaderunner STATIC ${SHADERUNNER_SOURCES})
-target_link_libraries( shaderunner
-					   PRIVATE
-					   utility
-					   oglbase
-					   )
+target_link_libraries(shaderunner
+	PRIVATE
+		utility
+		oglbase
+)
+_common_project_options(shaderunner)
 
 # ______________________________________________________________________________
 
-project(win32_bootstrap)
-
-_common_project_options()
 add_executable(win32_bootstrap WIN32 ${WIN32_BOOTSTRAP_SOURCES})
-target_link_libraries( win32_bootstrap
-					   PRIVATE
-					   oglbase
-					   uibase
-					   shaderunner
-					   )
+target_link_libraries(win32_bootstrap
+	PRIVATE
+		oglbase
+		uibase
+		shaderunner
+)
+_common_project_options(win32_bootstrap)
 
-add_custom_command( TARGET win32_bootstrap POST_BUILD
-					COMMAND ${CMAKE_COMMAND} -E copy_if_different
-							"${PROJECT_SOURCE_DIR}/${LIB_DIR}/glew/bin/Release/x64/glew32.dll"
-							$<TARGET_FILE_DIR:win32_bootstrap>
-							)
+# NOTE(andrea.machizaud) Fetch Glew dynamic library path directly from CMake imported target
+get_target_property(GLEW_DSO_PATH
+	GLEW::GLEW
+	IMPORTED_LOCATION
+)
 
-install( TARGETS win32_bootstrap
-		 DESTINATION .)
-install( FILES ${LIB_DIR}/glew/bin/Release/x64/glew32.dll
-		 DESTINATION .)
+message(STATUS "[install/GLEW] DSO path: ${GLEW_DSO_PATH}")
+
+add_custom_command(
+	TARGET win32_bootstrap
+	POST_BUILD
+	COMMAND
+		${CMAKE_COMMAND} -E copy_if_different
+			"${GLEW_DSO_PATH}"
+			$<TARGET_FILE_DIR:win32_bootstrap>
+)
+
+install(TARGETS win32_bootstrap
+	DESTINATION
+		"${CMAKE_CURRENT_BINARY_DIR}"
+)
+
+install(FILES
+	"${GLEW_DSO_PATH}"
+	DESTINATION
+		"${CMAKE_CURRENT_BINARY_DIR}"
+)
 
 # ==============================================================================
 set(CPACK_PACKAGE_NAME "Shade Runner")
