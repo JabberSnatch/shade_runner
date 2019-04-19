@@ -73,7 +73,7 @@ function(_COMMON_PROJECT_OPTIONS TARGET_NAME)
 		add_compile_options(-W4 -WX)
 	  endif(WARN_VERBOSE)
 	elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-	  add_compile_options(-std:c++17)
+	  add_compile_options(-std=c++17)
 
 	  if (WARN_VERBOSE)
 		add_compile_options(-Weverything)

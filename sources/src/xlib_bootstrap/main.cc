@@ -1,10 +1,24 @@
+/*
+ * ----------------------------------------------------------------------------
+ * "THE BEER-WARE LICENSE" (Revision 42):
+ * Samuel Bourasseau wrote this file. You can do whatever you want with this
+ * stuff. If we meet some day, and you think this stuff is worth it, you can
+ * buy me a beer in return.
+ * ----------------------------------------------------------------------------
+ */
+
 #include <iostream>
+#include <memory>
+
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/Xos.h>
 
+#include <GL/glew.h>
 #include <GL/gl.h>
 #include <GL/glx.h>
+
+#include "shaderunner/shaderunner.h"
 
 using proc_glXCreateContextAttribsARB =
     GLXContext(*)(Display*, GLXFBConfig, GLXContext, Bool, int const*);
@@ -12,10 +26,10 @@ using proc_glXCreateContextAttribsARB =
 static const int kVisualAttributes[] = {
     GLX_X_RENDERABLE, True,
     GLX_DOUBLEBUFFER, True,
-#if 0
-    GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT,
     GLX_RENDER_TYPE, GLX_RGBA_BIT,
+#if 0
     GLX_X_VISUAL_TYPE, GLX_TRUE_COLOR,
+    GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT,
     GLX_DEPTH_SIZE, 24,
 #endif
     None
@@ -26,7 +40,13 @@ static const int kGLContextAttributes[] = {
     None
 };
 
-int main()
+
+static constexpr int boot_width = 1280;
+static constexpr int boot_height = 720;
+
+std::unique_ptr<sr::RenderContext> sr_context;
+
+int main(int __argc, char* __argv[])
 {
     Display* const display = XOpenDisplay(nullptr);
     if (!display)
@@ -114,6 +134,10 @@ int main()
     }
 
     glXMakeCurrent(display, window, glx_context);
+    if (glewInit() != GLEW_OK)
+    {
+        std::cerr << "glew failed to initalize." << std::endl;
+    }
 	std::cout << "GL init complete : " << std::endl;
 	std::cout << "OpenGL version : " << glGetString(GL_VERSION) << std::endl;
 	std::cout << "Manufacturer : " << glGetString(GL_VENDOR) << std::endl;
@@ -127,17 +151,25 @@ int main()
 		std::cout << std::endl;
 	}
 
-
-    glClearColor(0.5, 0.5, 0.5, 1.0);
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    glXSwapBuffers(display, window);
-
+    sr_context.reset(new sr::RenderContext());
+    sr_context->SetResolution(boot_width, boot_height);
+    if (__argc > 1)
+    {
+        sr_context->WatchFKernelFile(__argv[1]);
+    }
     glXMakeCurrent(display, 0, 0);
 
-    std::cout << "Hello GL !" << std::endl;
-    int i = 0;
-    std::cin >> i;
+    glXMakeCurrent(display, window, glx_context);
+    for(;;)
+    {
+        if (!sr_context->RenderFrame()) break;
+        glXSwapBuffers(display, window);
+    }
+    glXMakeCurrent(display, 0, 0);
+
+    glXMakeCurrent(display, window, glx_context);
+    sr_context.reset(nullptr);
+    glXMakeCurrent(display, 0, 0);
 
     glXDestroyContext(display, glx_context);
     XDestroyWindow(display, window);
