@@ -46,6 +46,11 @@ set( WIN32_BOOTSTRAP_SOURCES
 	 ${WIN32_BOOTSTRAP_DIR}/main.cc
 	 )
 
+set(XLIB_BOOTSTRAP_DIR ${SOURCE_DIR}/xlib_bootstrap)
+set( XLIB_BOOTSTRAP_SOURCES
+     ${XLIB_BOOTSTRAP_DIR}/main.cc
+	 )
+
 # ==============================================================================
 
 function(_COMMON_PROJECT_OPTIONS TARGET_NAME)
@@ -59,15 +64,24 @@ function(_COMMON_PROJECT_OPTIONS TARGET_NAME)
 			Boost::filesystem
 	)
 
-	if(MSVC)
-		add_compile_options(-std:c++latest)
-	endif(MSVC)
+	if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
+	  add_compile_options(-std:c++latest)
 
-	if (WARN_VERBOSE)
+	  if (WARN_VERBOSE)
 		add_compile_options(-Wall)
-	else()
+	  else()
 		add_compile_options(-W4 -WX)
-	endif(WARN_VERBOSE)
+	  endif(WARN_VERBOSE)
+	elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+	  add_compile_options(-std:c++17)
+
+	  if (WARN_VERBOSE)
+		add_compile_options(-Weverything)
+	  else()
+		add_compile_options(-Werror)
+	  endif(WARN_VERBOSE)
+	endif()
+
 endfunction()
 
 # ==============================================================================
@@ -144,6 +158,16 @@ install(FILES
 	DESTINATION
 		"${CMAKE_CURRENT_BINARY_DIR}"
 )
+
+# ______________________________________________________________________________
+
+add_executable(xlib_bootstrap ${XLIB_BOOTSTRAP_SOURCES})
+target_link_libraries(xlib_bootstrap
+    PRIVATE
+		X11
+		shaderunner
+)
+_common_project_options(xlib_bootstrap)
 
 # ==============================================================================
 set(CPACK_PACKAGE_NAME "Shade Runner")

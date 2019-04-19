@@ -9,6 +9,7 @@
 
 #include "shaderunner/shader_cache.h"
 
+#include <algorithm>
 
 #define SR_SL_ENTRY_POINT(entry_point) "#define SR_ENTRY_POINT " entry_point "\n"
 #define SR_VERT_ENTRY_POINT "vertexMain"

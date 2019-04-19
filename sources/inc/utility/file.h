@@ -36,4 +36,4 @@ private:
 } // namespace utility
 
 
-#endif __YS_FILE_HPP__
+#endif // __YS_FILE_HPP__
