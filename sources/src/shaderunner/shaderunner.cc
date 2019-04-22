@@ -63,7 +63,7 @@ static oglbase::ShaderSources_t const& kProcessingVKernel()
     static oglbase::ShaderSources_t const result{
         "in vec3 in_position;\n",
         "void vertexMain(inout vec4 vert_position){\n",
-        "vert_position = vec4(0.0);",
+        "vert_position = vec4(in_position, 1.0);",
         "}\n"
     };
     return result;
@@ -74,7 +74,7 @@ static oglbase::ShaderSources_t const& kProcessingGKernel()
     static oglbase::ShaderSources_t const result{
         "layout(points) in;\n",
         "layout(triangle_strip, max_vertices = 24) out;\n",
-        "const vec4 kBaseExtent = vec4(0.2, 0.2, 0.2, 0.0);\n",
+        "const vec4 kBaseExtent = 0.2 * vec4(1.0, 1.0, 1.0, 0.0);\n",
         "void main() {\n",
         "vec4 in_position = gl_in[0].gl_Position;",
         /*
@@ -216,6 +216,8 @@ RenderContext::Impl_::Impl_() :
 		assert(shader_program_);
 	}
 
+    //#define SR_GEOMETRY_RENDERING
+#ifdef SR_GEOMETRY_RENDERING
     // GEOMETRY RENDERING EXPERIMENTS
     {
         std::vector<float> const& points = kTempPointVector();
@@ -241,6 +243,7 @@ RenderContext::Impl_::Impl_() :
                                                 ShaderStage::kFragment };
         shader_program_ = oglbase::LinkProgram(shader_cache_.select(active_stages_));
     }
+#endif
 }
 
 
@@ -250,8 +253,6 @@ RenderContext::Impl_::KernelsUpdate()
     using KernelFile = std::pair<const ShaderStage, utility::File>;
     using UpdatedShadersLUT = std::unordered_map<ShaderStage, oglbase::ShaderPtr>;
     UpdatedShadersLUT updated_shaders;
-
-    std::cout << "Updating kernel files.." << std::endl;
 
     bool link_required = std::any_of(std::begin(kernel_files_), std::end(kernel_files_),
                                      [&updated_shaders](KernelFile &_kernel_file) {
@@ -308,12 +309,12 @@ RenderContext::Impl_::KernelsUpdate()
             return;
         }
 
+        std::cout << "Linked updated program" << std::endl;
+
         for (auto&& updated_shader : updated_shaders)
             shader_cache_[updated_shader.first] = std::move(updated_shader.second);
         shader_program_ = std::move(linked_program);
     }
-    else
-        std::cout << "No usable changes to kernel files detected" << std::endl;
 }
 
 
@@ -382,7 +383,7 @@ RenderContext::RenderFrame()
 		}
 	}
 
-#if 0
+#ifndef SR_GEOMETRY_RENDERING
 	glBindVertexArray(impl_->dummy_vao_);
 	glDrawArrays(GL_TRIANGLES, 0, 3);
 	glBindVertexArray(0u);
@@ -399,19 +400,18 @@ RenderContext::RenderFrame()
 	glFlush();
 #endif
 
-    glFlush();
 	start_over = start_over && (glGetError() == GL_NO_ERROR);
-    if (!start_over)
-        std::cout << "Error during rendering" << std::endl;
 	return start_over;
 }
 
 void
 RenderContext::WatchKernelFile(ShaderStage _stage, char const *_path)
 {
-    impl_->active_stages_.insert(_stage);
-    impl_->kernel_files_[_stage] = utility::File{ _path };
-    impl_->KernelsUpdate();
+    if (impl_->active_stages_.count(_stage) != 0)
+    {
+        impl_->kernel_files_[_stage] = utility::File{ _path };
+        impl_->KernelsUpdate();
+    }
 }
 
 void

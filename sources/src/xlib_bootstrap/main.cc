@@ -177,9 +177,13 @@ int main(int __argc, char* __argv[])
     {
         sr_context->WatchKernelFile(sr::ShaderStage::kFragment, __argv[1]);
     }
+    if (__argc > 3)
+    {
+        sr_context->WatchKernelFile(sr::ShaderStage::kVertex, __argv[3]);
+    }
     if (__argc > 2)
     {
-        sr_context->WatchKernelFile(sr::ShaderStage::kVertex, __argv[2]);
+        sr_context->WatchKernelFile(sr::ShaderStage::kGeometry, __argv[2]);
     }
     glXMakeCurrent(display, 0, 0);
 
