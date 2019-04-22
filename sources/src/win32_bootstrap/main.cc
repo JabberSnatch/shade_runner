@@ -10,7 +10,7 @@
 #define _SCL_SECURE_NO_WARNINGS
 
 #pragma warning(push)
-#pragma warning(disable : 4668) // (Wall) C4668 : undefined macro replaced with 0 for #if/#elif
+#pragma warning(disable : 4668)
 #include <windows.h>
 #pragma warning(pop)
 #include <windowsx.h>
@@ -19,18 +19,9 @@
 #include <stdio.h>
 
 #pragma warning(push)
-// (Wall) C4514 : unreferenced inline function was removed
 #pragma warning(disable : 4514)
 #include <cstdlib>
 
-// (Wall) C4365 : signed/unsigned mismatch
-// (Wall) C4571 : catch(...) semantics changed since Visual C++ 7.1; SEH no longer caught
-// (Wall) C4625 : cpy ctor implicitly deleted
-// (Wall) C4626 : assignment op implicitly deleted
-// (Wall) C4774 : not a string literal
-// (Wall) C4820 : added padding
-// (Wall) C5026 : move ctor implicitly deleted
-// (Wall) C5027 : move assignment implicitly deleted
 #pragma warning(disable : 4365 4571 4625 4626 4774 4820 5026 5027)
 #include <iostream>
 #pragma warning(pop)
@@ -98,9 +89,10 @@ static char const *wnd_title = "ShadeRunner";
 constexpr int boot_width = 1280;
 constexpr int boot_height = 720;
 
-Win32Handles handles{};
 std::unique_ptr<sr::RenderContext> sr_context{};
 std::unique_ptr<uibase::ImGuiContext> ui_context{};
+
+Win32Handles handles{};
 
 int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 					 _In_ HINSTANCE hPrevInstance,
@@ -265,7 +257,7 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 	ui_context.reset(new uibase::ImGuiContext());
 	if (__argc > 1)
 	{
-		sr_context->WatchFKernelFile(__argv[1]);
+		sr_context->WatchKernelFile(sr::ShaderStage::kFragment, __argv[1]);
 	}
 	sr_context->SetResolution(boot_width, boot_height);
 	ui_context->SetResolution(boot_width, boot_height);
@@ -376,7 +368,7 @@ LRESULT CALLBACK WndProc(_In_ HWND   hwnd,
 				ImGui::MenuItem("Demo", nullptr, &show_demo_window);
 				if (ImGui::MenuItem("File Selection", nullptr, &show_file_selection_window) && false)
 				{
-					std::string const &fkernel_path = sr_context->GetFKernelPath();
+					std::string const &fkernel_path = sr_context->GetKernelPath(sr::ShaderStage::kFragment);
 					assert(fkernel_path.size() <= kTextBufferSize);
 					std::copy(fkernel_path.cbegin(), fkernel_path.cend(), &fkernel_path_buffer[0]);
 				}
@@ -390,7 +382,7 @@ LRESULT CALLBACK WndProc(_In_ HWND   hwnd,
 		{
 			if (ImGui::Begin("File Selection", &show_file_selection_window, 0))
 			{
-				std::string const &fkernel_path = sr_context->GetFKernelPath();
+				std::string const &fkernel_path = sr_context->GetKernelPath(sr::ShaderStage::kFragment);
 				assert(fkernel_path.size() <= kTextBufferSize);
 				std::copy(fkernel_path.cbegin(), fkernel_path.cend(), &fkernel_path_buffer[0]);
 				bool const state = ImGui::InputText("Path",
@@ -401,7 +393,7 @@ LRESULT CALLBACK WndProc(_In_ HWND   hwnd,
 				{
 					std::cout << "imgui input received" << std::endl;
 					wglMakeCurrent(handles.device_context, handles.gl_context);
-					sr_context->WatchFKernelFile(fkernel_path_buffer);
+					sr_context->WatchKernelFile(sr::ShaderStage::kFragment, fkernel_path_buffer);
 					wglMakeCurrent(handles.device_context, NULL);
 				}
 			}

@@ -21,7 +21,7 @@
 namespace sr {
 
 
-enum class ShaderStage { kVertex = 0, kFragment, kCount };
+enum class ShaderStage { kVertex = 0, kFragment, kGeometry, kCount };
 oglbase::ShaderSources_t const &KernelSuffix(ShaderStage _stage);
 oglbase::ShaderSources_t const &DefaultKernel(ShaderStage _stage);
 GLenum ShaderStageToGLenum(ShaderStage _stage);

@@ -14,6 +14,7 @@
 #define SR_SL_ENTRY_POINT(entry_point) "#define SR_ENTRY_POINT " entry_point "\n"
 #define SR_VERT_ENTRY_POINT "vertexMain"
 #define SR_FRAG_ENTRY_POINT "imageMain"
+#define SR_GEOM_ENTRY_POINT "geomMain"
 
 
 namespace sr {
@@ -84,6 +85,7 @@ ShaderStageToGLenum(ShaderStage _stage)
 	{
 	case ShaderStage::kVertex: return GL_VERTEX_SHADER;
 	case ShaderStage::kFragment: return GL_FRAGMENT_SHADER;
+    case ShaderStage::kGeometry: return GL_GEOMETRY_SHADER;
 	default: return static_cast<GLenum>(0u);
 	}
 }

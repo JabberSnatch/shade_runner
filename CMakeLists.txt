@@ -171,6 +171,6 @@ _common_project_options(xlib_bootstrap)
 
 # ==============================================================================
 set(CPACK_PACKAGE_NAME "Shade Runner")
-set(CPACK_PACKAGE_VERSION "0.0.1")
+set(CPACK_PACKAGE_VERSION "0.0.2")
 include(CPack)
 

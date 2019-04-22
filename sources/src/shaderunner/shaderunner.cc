@@ -15,6 +15,8 @@
 #include <iostream>
 #include <iterator>
 #include <set>
+#include <unordered_map>
+#include <vector>
 
 #include <boost/numeric/conversion/cast.hpp>
 #include <GL/glew.h>
@@ -25,8 +27,6 @@
 #include "oglbase/error.h"
 #include "oglbase/handle.h"
 #include "oglbase/shader.h"
-
-#include "shaderunner/shader_cache.h"
 
 #define SR_GLSL_VERSION "#version 330 core\n"
 #define SR_SL_TIME_UNIFORM "iTime"
@@ -50,10 +50,94 @@
  * [ ] |- API
  * [ ] |- editor
  * [X] |- context
- * [ ] |- kernel
+ * [ ] |- shader_kernel
  * [ ] platform
  * [X] |- main
  */
+
+// GEOMETRY RENDERING EXPERIMENTS
+namespace {
+
+static oglbase::ShaderSources_t const& kProcessingVKernel()
+{
+    static oglbase::ShaderSources_t const result{
+        "in vec3 in_position;\n",
+        "void vertexMain(inout vec4 vert_position){\n",
+        "vert_position = vec4(0.0);",
+        "}\n"
+    };
+    return result;
+}
+
+static oglbase::ShaderSources_t const& kProcessingGKernel()
+{
+    static oglbase::ShaderSources_t const result{
+        "layout(points) in;\n",
+        "layout(triangle_strip, max_vertices = 24) out;\n",
+        "const vec4 kBaseExtent = vec4(0.2, 0.2, 0.2, 0.0);\n",
+        "void main() {\n",
+        "vec4 in_position = gl_in[0].gl_Position;",
+        /*
+         * Triangle strips make for the following point ordering for each face :
+         * 2 ----- 4
+         * |\      |
+         * |  \    |
+         * |    \  |
+         * |      \|
+         * 1 ----- 3
+         */
+        "gl_Position = in_position + vec4(1, -1, 1, 0) * kBaseExtent; EmitVertex();",
+        "gl_Position = in_position + vec4(-1, -1, 1, 0) * kBaseExtent; EmitVertex();",
+        "gl_Position = in_position + vec4(1, -1, -1, 0) * kBaseExtent; EmitVertex();",
+        "gl_Position = in_position + vec4(-1, -1, -1, 0) * kBaseExtent; EmitVertex();",
+        "EndPrimitive();",
+
+        "gl_Position = in_position + vec4(1, -1, -1, 0) * kBaseExtent; EmitVertex();",
+        "gl_Position = in_position + vec4(1, 1, -1, 0) * kBaseExtent; EmitVertex();",
+        "gl_Position = in_position + vec4(1, -1, 1, 0) * kBaseExtent; EmitVertex();",
+        "gl_Position = in_position + vec4(1, 1, 1, 0) * kBaseExtent; EmitVertex();",
+        "EndPrimitive();",
+
+        "gl_Position = in_position + vec4(1, -1, 1, 0) * kBaseExtent; EmitVertex();",
+        "gl_Position = in_position + vec4(1, 1, 1, 0) * kBaseExtent; EmitVertex();",
+        "gl_Position = in_position + vec4(-1, -1, 1, 0) * kBaseExtent; EmitVertex();",
+        "gl_Position = in_position + vec4(-1, 1, 1, 0) * kBaseExtent; EmitVertex();",
+        "EndPrimitive();",
+
+        "gl_Position = in_position + vec4(-1, -1, 1, 0) * kBaseExtent; EmitVertex();",
+        "gl_Position = in_position + vec4(-1, 1, 1, 0) * kBaseExtent; EmitVertex();",
+        "gl_Position = in_position + vec4(-1, -1, -1, 0) * kBaseExtent; EmitVertex();",
+        "gl_Position = in_position + vec4(-1, 1, -1, 0) * kBaseExtent; EmitVertex();",
+        "EndPrimitive();",
+
+        "gl_Position = in_position + vec4(-1, -1, -1, 0) * kBaseExtent; EmitVertex();",
+        "gl_Position = in_position + vec4(-1, 1, -1, 0) * kBaseExtent; EmitVertex();",
+        "gl_Position = in_position + vec4(1, -1, -1, 0) * kBaseExtent; EmitVertex();",
+        "gl_Position = in_position + vec4(1, 1, -1, 0) * kBaseExtent; EmitVertex();",
+        "EndPrimitive();",
+
+        "gl_Position = in_position + vec4(1, 1, -1, 0) * kBaseExtent; EmitVertex();",
+        "gl_Position = in_position + vec4(-1, 1, -1, 0) * kBaseExtent; EmitVertex();",
+        "gl_Position = in_position + vec4(1, 1, 1, 0) * kBaseExtent; EmitVertex();",
+        "gl_Position = in_position + vec4(-1, 1, 1, 0) * kBaseExtent; EmitVertex();",
+        "EndPrimitive();",
+        "}"
+    };
+    return result;
+}
+
+static std::vector<float> const& kTempPointVector()
+{
+    static std::vector<float> const result{
+        -0.25f, -0.25f, -0.25f,
+        0.25f, -0.25f, -0.25f,
+        0.25f, 0.25f, -0.25f,
+        -0.25f, 0.25f, -0.25f
+    };
+    return result;
+}
+
+} // namespace
 
 namespace sr {
 
@@ -68,36 +152,52 @@ public:
 
 public:
 	utility::Clock exec_time_;
+
 public:
-	utility::File fkernel_file_;
-	static constexpr float kFKernelUpdatePeriod = 1.f;
-	float fkernel_update_counter_ = 0.f;
-	void FKernelUpdate(float const _elapsed_time);
+	static constexpr float kKernelsUpdatePeriod = 1.f;
+    void KernelsUpdate();
+    std::unordered_map<ShaderStage, utility::File> kernel_files_;
+
 public:
 	Resolution_t resolution_;
+
 public:
+	static oglbase::ShaderPtr CompileKernel(ShaderStage _stage, oglbase::ShaderSources_t const &_kernel_sources);
 	std::set<ShaderStage> active_stages_;
 	ShaderCache shader_cache_;
-
-	static oglbase::ShaderPtr CompileKernel(ShaderStage _stage, oglbase::ShaderSources_t const &_kernel_sources);
-	bool BuildKernel(ShaderStage _stage, std::string const &_kernel_sources);
 	oglbase::ProgramPtr shader_program_;
+
 public:
 	oglbase::VAOPtr dummy_vao_;
-	oglbase::BufferPtr test_vbo_;
+
+    // GEOMETRY RENDERING EXPERIMENTS
+public:
+    int point_count_;
+    oglbase::VAOPtr vao_;
+    oglbase::BufferPtr vertex_buffer_;
 };
 
 RenderContext::Impl_::Impl_() :
 	exec_time_{ [this](float const _dt) {
-		FKernelUpdate(_dt);
+        static auto kernels_timeout = [this, update_counter = 0.f](float _dt) mutable {
+            update_counter += _dt;
+            if (update_counter > kKernelsUpdatePeriod)
+            {
+                update_counter = 0.f;
+                this->KernelsUpdate();
+            }
+        };
+        kernels_timeout(_dt);
 	}},
-	fkernel_file_{},
 	resolution_{ 0.f, 0.f },
-	active_stages_{ShaderStage::kVertex, ShaderStage::kFragment},
+	active_stages_{ ShaderStage::kVertex, ShaderStage::kFragment },
 	shader_cache_{},
 	shader_program_{ 0u },
 	dummy_vao_{ 0u },
-	test_vbo_{ 0u }
+
+    point_count_{ 0 },
+    vao_{ 0u },
+    vertex_buffer_{ 0u }
 {
 	{
 		glGenVertexArrays(1, dummy_vao_.get());
@@ -110,61 +210,112 @@ RenderContext::Impl_::Impl_() :
 			assert(shader_cache_[stage]);
 		}
 
-
-#if 0
-		{
-			glGenBuffers(1, test_vbo_.get());
-
-			static const float data[] = { 0.5f, -0.5f, 0.f, 0.5f, -0.5f, -0.5f };
-			glBindBuffer(GL_ARRAY_BUFFER, test_vbo_);
-			glBufferStorage(GL_ARRAY_BUFFER, 6*sizeof(float), data, 0);
-			glBindVertexArray(dummy_vao_);
-			glEnableVertexAttribArray(0);
-			glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, reinterpret_cast<GLvoid*>(0));
-			glBindBuffer(GL_ARRAY_BUFFER, 0u);
-			oglbase::PrintError(std::cout);
-		}
-
-		shader_cache_[ShaderStage::kVertex] = CompileKernel(ShaderStage::kVertex, {
-			"layout (location = 0) in vec2 position; void vertexMain(inout vec4 vert_position) { vert_position = vec4(position, 0.0, 1.0); }\n"
-		});
-#endif
-
 		oglbase::ShaderBinaries_t const shader_binaries =
 			shader_cache_.select(active_stages_);
 		shader_program_ = oglbase::LinkProgram(shader_binaries);
 		assert(shader_program_);
 	}
+
+    // GEOMETRY RENDERING EXPERIMENTS
+    {
+        std::vector<float> const& points = kTempPointVector();
+        point_count_ = static_cast<int>(points.size() / 3u);
+        glGenVertexArrays(1, vao_.get());
+        glGenBuffers(1, vertex_buffer_.get());
+
+        glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer_);
+        glBufferData(GL_ARRAY_BUFFER, point_count_ * 3 * sizeof(float),
+                     points.data(), GL_STATIC_DRAW);
+
+        glBindVertexArray(vao_);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, reinterpret_cast<GLvoid const*>(0));
+        glEnableVertexAttribArray(0);
+        glBindVertexArray(0u);
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0u);
+
+        shader_cache_[ShaderStage::kVertex] = CompileKernel(ShaderStage::kVertex, kProcessingVKernel());
+        shader_cache_[ShaderStage::kGeometry] = CompileKernel(ShaderStage::kGeometry, kProcessingGKernel());
+        active_stages_ = std::set<ShaderStage>{ ShaderStage::kVertex,
+                                                ShaderStage::kGeometry,
+                                                ShaderStage::kFragment };
+        shader_program_ = oglbase::LinkProgram(shader_cache_.select(active_stages_));
+    }
 }
 
+
 void
-RenderContext::Impl_::FKernelUpdate(float const _increment)
+RenderContext::Impl_::KernelsUpdate()
 {
-	fkernel_update_counter_ += _increment;
-	if (fkernel_update_counter_ > kFKernelUpdatePeriod)
-	{
-#if 0
-		std::cout << "Running fkernel update.." << std::endl;
-#endif
-		fkernel_update_counter_ = 0.f;
-		bool const fkernel_file_available = fkernel_file_.Exists();
-		if (fkernel_file_available && fkernel_file_.HasChanged())
-		{
-			std::cout << "fkernel file changed, building.." << std::endl;
-			BuildKernel(ShaderStage::kFragment, fkernel_file_.ReadAll());
-		}
-		else if (!fkernel_file_available)
-		{
-			std::cout << "fkernel file is either nonexistent, or not a regular file" << std::endl;
-		}
-		else
-		{
-#if 0
-			std::cout << "compiled fkernel is up to date" << std::endl;
-#endif
-		}
-	}
+    using KernelFile = std::pair<const ShaderStage, utility::File>;
+    using UpdatedShadersLUT = std::unordered_map<ShaderStage, oglbase::ShaderPtr>;
+    UpdatedShadersLUT updated_shaders;
+
+    std::cout << "Updating kernel files.." << std::endl;
+
+    bool link_required = std::any_of(std::begin(kernel_files_), std::end(kernel_files_),
+                                     [&updated_shaders](KernelFile &_kernel_file) {
+        bool const kernel_file_available = _kernel_file.second.Exists();
+        if (kernel_file_available && _kernel_file.second.HasChanged())
+        {
+            std::cout << "Kernel file changed, building.." << std::endl;
+            oglbase::ShaderPtr compiled_shader = CompileKernel(_kernel_file.first, { _kernel_file.second.ReadAll().c_str() });
+            if (!compiled_shader)
+            {
+                std::cout << "Shader compilation failed" << std::endl;
+                return false;
+            }
+
+            updated_shaders[_kernel_file.first] = std::move(compiled_shader);
+            return true;
+        }
+        else if (!kernel_file_available)
+        {
+            std::cout << "Kernel file is either nonexistent, or not a regular file" << std::endl;
+        }
+        return false;
+    });
+
+    if (link_required)
+    {
+        oglbase::ProgramPtr linked_program = oglbase::LinkProgram(
+            [](std::set<ShaderStage> const& _active_stages,
+               UpdatedShadersLUT const& _updated_shaders,
+               ShaderCache const& _shader_cache)
+            {
+                oglbase::ShaderBinaries_t result{};
+                for (ShaderStage stage : _active_stages)
+                {
+                    auto const updated_shader_it = _updated_shaders.find(stage);
+                    if (updated_shader_it != std::end(_updated_shaders))
+                    {
+                        result.emplace_back(updated_shader_it->second);
+                    }
+                    else
+                    {
+                        oglbase::ShaderPtr const& cached_shader = _shader_cache[stage];
+                        assert(cached_shader);
+                        result.emplace_back(cached_shader);
+                    }
+                }
+                assert(result.size() == _active_stages.size());
+                return result;
+            } (active_stages_, updated_shaders, shader_cache_)
+        );
+        if (!linked_program)
+        {
+            std::cout << "Program link failed" << std::endl;
+            return;
+        }
+
+        for (auto&& updated_shader : updated_shaders)
+            shader_cache_[updated_shader.first] = std::move(updated_shader.second);
+        shader_program_ = std::move(linked_program);
+    }
+    else
+        std::cout << "No usable changes to kernel files detected" << std::endl;
 }
+
 
 oglbase::ShaderPtr
 RenderContext::Impl_::CompileKernel(ShaderStage _stage, oglbase::ShaderSources_t const &_kernel_sources)
@@ -185,26 +336,6 @@ RenderContext::Impl_::CompileKernel(ShaderStage _stage, oglbase::ShaderSources_t
 	return oglbase::CompileShader(ShaderStageToGLenum(_stage), shader_sources);
 }
 
-bool
-RenderContext::Impl_::BuildKernel(ShaderStage _stage, std::string const &_sources)
-{
-	if (active_stages_.find(_stage) == active_stages_.end()) return false;
-
-	oglbase::ShaderSources_t const kernel_sources{_sources.c_str()};
-	oglbase::ShaderPtr compiled_shader = CompileKernel(_stage, kernel_sources);
-	if (!compiled_shader) return false;
-
-	oglbase::ShaderBinaries_t shader_binaries{compiled_shader};
-	for (ShaderStage active_stage : active_stages_)
-		if (active_stage != _stage)
-			shader_binaries.emplace_back(shader_cache_[active_stage]);
-	oglbase::ProgramPtr linked_program = oglbase::LinkProgram(shader_binaries);
-	if (!linked_program) return false;
-
-	shader_cache_[_stage] = std::move(compiled_shader);
-	shader_program_ = std::move(linked_program);
-	return true;
-}
 
 // =============================================================================
 
@@ -227,14 +358,14 @@ RenderContext::RenderFrame()
 
 	glDisable(GL_BLEND);
 	glDisable(GL_SCISSOR_TEST);
-	glDisable(GL_CULL_FACE);
-	glDisable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+    //glEnable(GL_DEPTH_TEST);
+    glFrontFace(GL_CCW);
 
 	static GLfloat const clear_color[]{ 0.5f, 0.5f, 0.5f, 1.f };
 	glClearBufferfv(GL_COLOR, 0, clear_color);
 
 	glUseProgram(impl_->shader_program_);
-	glBindVertexArray(impl_->dummy_vao_);
 
 	{
 		int const time_loc = glGetUniformLocation(impl_->shader_program_, SR_SL_TIME_UNIFORM);
@@ -251,28 +382,37 @@ RenderContext::RenderFrame()
 		}
 	}
 
+#if 0
+	glBindVertexArray(impl_->dummy_vao_);
 	glDrawArrays(GL_TRIANGLES, 0, 3);
-	start_over = start_over && (glGetError() == GL_NO_ERROR);
-
 	glBindVertexArray(0u);
+#else
+    // GEOMETRY RENDERING EXPERIMENTS
+    glBindVertexArray(impl_->vao_);
+    glDrawArrays(GL_POINTS, 0, impl_->point_count_);
+    glBindVertexArray(0u);
+#endif
+
 	glUseProgram(0u);
 
 #ifdef SR_SINGLE_BUFFERING
 	glFlush();
 #endif
 
+    glFlush();
+	start_over = start_over && (glGetError() == GL_NO_ERROR);
+    if (!start_over)
+        std::cout << "Error during rendering" << std::endl;
 	return start_over;
 }
 
-
 void
-RenderContext::WatchFKernelFile(char const *_path)
+RenderContext::WatchKernelFile(ShaderStage _stage, char const *_path)
 {
-	impl_->fkernel_file_ = utility::File{ _path };
-	if (impl_->fkernel_file_.Exists())
-		impl_->BuildKernel(ShaderStage::kFragment, {impl_->fkernel_file_.ReadAll()});
+    impl_->active_stages_.insert(_stage);
+    impl_->kernel_files_[_stage] = utility::File{ _path };
+    impl_->KernelsUpdate();
 }
-
 
 void
 RenderContext::SetResolution(int _width, int _height)
@@ -284,9 +424,16 @@ RenderContext::SetResolution(int _width, int _height)
 
 
 std::string const &
-RenderContext::GetFKernelPath() const
+RenderContext::GetKernelPath(ShaderStage _stage) const
 {
-	return impl_->fkernel_file_.path();
+    auto const kernel_file_it = impl_->kernel_files_.find(_stage);
+    if (kernel_file_it != std::end(impl_->kernel_files_))
+        return kernel_file_it->second.path();
+    else
+    {
+        static std::string const empty{ "" };
+        return empty;
+    }
 }
 
 

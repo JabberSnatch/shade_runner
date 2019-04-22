@@ -13,6 +13,8 @@
 
 #include <string>
 
+#include "shaderunner/shader_cache.h"
+
 namespace sr {
 
 class RenderContext
@@ -22,10 +24,10 @@ public:
 	~RenderContext();
 
 	bool RenderFrame();
-	void WatchFKernelFile(char const *_path);
+	void WatchKernelFile(ShaderStage _stage, char const *_path);
 	void SetResolution(int _width, int _height);
 public:
-	std::string const &GetFKernelPath() const;
+	std::string const &GetKernelPath(ShaderStage _stage) const;
 private:
 	struct Impl_;
 	Impl_* impl_;

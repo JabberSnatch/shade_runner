@@ -22,6 +22,10 @@
 
 using proc_glXCreateContextAttribsARB =
     GLXContext(*)(Display*, GLXFBConfig, GLXContext, Bool, int const*);
+using proc_glXSwapIntervalEXT =
+    void(*)(Display*, GLXDrawable, int);
+using proc_glXSwapIntervalMESA =
+    int(*)(unsigned);
 
 static const int kVisualAttributes[] = {
     GLX_X_RENDERABLE, True,
@@ -97,7 +101,7 @@ int main(int __argc, char* __argv[])
     int const swa_mask = CWColormap | CWBorderPixel | CWEventMask;
 
     Window window = XCreateWindow(display, RootWindow(display, visual_info->screen),
-                                  0, 0, 800, 600, 0, visual_info->depth, InputOutput,
+                                  0, 0, boot_width, boot_height, 0, visual_info->depth, InputOutput,
                                   visual_info->visual,
                                   swa_mask, &swa);
     if (!window)
@@ -119,6 +123,19 @@ int main(int __argc, char* __argv[])
         return 1;
     }
 
+    auto const glXSwapIntervalEXT = reinterpret_cast<proc_glXSwapIntervalEXT>(
+        glXGetProcAddressARB((GLubyte const*)"glXSwapIntervalEXT")
+        );
+    if (!glXSwapIntervalEXT)
+    {
+        std::cerr << "glXSwapIntervalEXT procedure unavailable" << std::endl;
+        return 1;
+    }
+
+    auto const glXSwapIntervalMESA = reinterpret_cast<proc_glXSwapIntervalMESA>(
+        glXGetProcAddressARB((GLubyte const*)"glXSwapIntervalMESA")
+        );
+
     GLXContext const glx_context = glXCreateContextAttribsARB(display, selected_config, 0,
                                                               True, kGLContextAttributes);
     XSync(display, False);
@@ -138,6 +155,9 @@ int main(int __argc, char* __argv[])
     {
         std::cerr << "glew failed to initalize." << std::endl;
     }
+
+    glXSwapIntervalMESA(1);
+    //glXSwapIntervalEXT(display, window, 1);
 	std::cout << "GL init complete : " << std::endl;
 	std::cout << "OpenGL version : " << glGetString(GL_VERSION) << std::endl;
 	std::cout << "Manufacturer : " << glGetString(GL_VENDOR) << std::endl;
@@ -155,7 +175,11 @@ int main(int __argc, char* __argv[])
     sr_context->SetResolution(boot_width, boot_height);
     if (__argc > 1)
     {
-        sr_context->WatchFKernelFile(__argv[1]);
+        sr_context->WatchKernelFile(sr::ShaderStage::kFragment, __argv[1]);
+    }
+    if (__argc > 2)
+    {
+        sr_context->WatchKernelFile(sr::ShaderStage::kVertex, __argv[2]);
     }
     glXMakeCurrent(display, 0, 0);
 
