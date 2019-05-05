@@ -10,6 +10,8 @@
 #include <iostream>
 #include <memory>
 
+#include <chrono>
+
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/Xos.h>
@@ -111,6 +113,9 @@ int main(int __argc, char* __argv[])
     }
     XFree(visual_info);
 
+    static constexpr long kEventMask = StructureNotifyMask;
+    XSelectInput(display, window, kEventMask);
+
     XStoreName(display, window, "x11_bootstrap");
     XMapWindow(display, window);
 
@@ -156,7 +161,7 @@ int main(int __argc, char* __argv[])
         std::cerr << "glew failed to initalize." << std::endl;
     }
 
-    glXSwapIntervalMESA(1);
+    //glXSwapIntervalMESA(1);
     //glXSwapIntervalEXT(display, window, 1);
 	std::cout << "GL init complete : " << std::endl;
 	std::cout << "OpenGL version : " << glGetString(GL_VERSION) << std::endl;
@@ -187,11 +192,27 @@ int main(int __argc, char* __argv[])
     }
     glXMakeCurrent(display, 0, 0);
 
+    using StdClock = std::chrono::high_resolution_clock;
+
     glXMakeCurrent(display, window, glx_context);
     for(;;)
     {
+        XEvent xevent;
+        while (XCheckWindowEvent(display, window, kEventMask, &xevent))
+        {
+            if (xevent.type == ConfigureNotify)
+            {
+                XConfigureEvent const& xcevent = xevent.xconfigure;
+                sr_context->SetResolution(xcevent.width, xcevent.height);
+            }
+        }
+
+        auto start = StdClock::now();
         if (!sr_context->RenderFrame()) break;
+        //glFinish();
         glXSwapBuffers(display, window);
+        auto end = StdClock::now();
+        //std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end-start).count() << std::endl;
     }
     glXMakeCurrent(display, 0, 0);
 
