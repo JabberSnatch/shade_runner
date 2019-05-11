@@ -36,13 +36,13 @@ static oglbase::ShaderSources_t const kGizmoFrag{
 using Matrix_t = std::array<float, 16>;
 using Vec3_t = std::array<float, 3>;
 
-Matrix_t perspective(float n, float f, float alpha, float woh)
+Matrix_t perspective(float n, float f, float alpha, float how)
 {
     float inv_tan_half_alpha = 1.f / std::tan(alpha * .5f);
     float inv_fmn = 1.f / (f-n);
     return Matrix_t{
         inv_tan_half_alpha, 0.f, 0.f, 0.f,
-        0.f, (1.f/woh)*inv_tan_half_alpha, 0.f, 0.f,
+        0.f, (1.f/how)*inv_tan_half_alpha, 0.f, 0.f,
         0.f, 0.f, (-(f+n))*inv_fmn, -1.f,
         0.f, 0.f, -2.f*f*n*inv_fmn, 0.f
     };

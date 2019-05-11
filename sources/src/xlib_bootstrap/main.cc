@@ -202,7 +202,7 @@ int main(int __argc, char* __argv[])
 
     gizmo.reset(new CubeGizmo());
 #define PERSPECTIVE(aspect) perspective(0.01f, 1000.f, 3.1415926534f*0.5f, (aspect))
-    Matrix_t projection = PERSPECTIVE(static_cast<float>(boot_width)/static_cast<float>(boot_height));
+    Matrix_t projection = PERSPECTIVE(static_cast<float>(boot_height)/static_cast<float>(boot_width));
 
     glXMakeCurrent(display, 0, 0);
 
@@ -220,7 +220,7 @@ int main(int __argc, char* __argv[])
             {
                 XConfigureEvent const& xcevent = xevent.xconfigure;
                 sr_context->SetResolution(xcevent.width, xcevent.height);
-                projection = PERSPECTIVE(static_cast<float>(xcevent.width)/static_cast<float>(xcevent.height));
+                projection = PERSPECTIVE(static_cast<float>(xcevent.height)/static_cast<float>(xcevent.width));
             } break;
             case ButtonPress:
             {
