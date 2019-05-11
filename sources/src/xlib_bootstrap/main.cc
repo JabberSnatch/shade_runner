@@ -21,6 +21,7 @@
 #include <GL/glx.h>
 
 #include "shaderunner/shaderunner.h"
+#include "../shaderunner/gizmo.cc"
 
 using proc_glXCreateContextAttribsARB =
     GLXContext(*)(Display*, GLXFBConfig, GLXContext, Bool, int const*);
@@ -33,6 +34,8 @@ static const int kVisualAttributes[] = {
     GLX_X_RENDERABLE, True,
     GLX_DOUBLEBUFFER, True,
     GLX_RENDER_TYPE, GLX_RGBA_BIT,
+    GLX_SAMPLE_BUFFERS, 1,
+    GLX_SAMPLES, 1,
 #if 0
     GLX_X_VISUAL_TYPE, GLX_TRUE_COLOR,
     GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT,
@@ -51,6 +54,8 @@ static constexpr int boot_width = 1280;
 static constexpr int boot_height = 720;
 
 std::unique_ptr<sr::RenderContext> sr_context;
+std::unique_ptr<CubeGizmo> gizmo;
+
 
 int main(int __argc, char* __argv[])
 {
@@ -88,7 +93,7 @@ int main(int __argc, char* __argv[])
             return 1;
         }
         std::cout << fb_count << " configs found" << std::endl;
-        selected_config = fb_configs[fb_count - 1];
+        selected_config = fb_configs[0];
         XFree(fb_configs);
     }
 
@@ -113,7 +118,10 @@ int main(int __argc, char* __argv[])
     }
     XFree(visual_info);
 
-    static constexpr long kEventMask = StructureNotifyMask;
+    static constexpr long kEventMask =
+        StructureNotifyMask |
+        ButtonPressMask | ButtonReleaseMask |
+        PointerMotionMask;
     XSelectInput(display, window, kEventMask);
 
     XStoreName(display, window, "x11_bootstrap");
@@ -176,6 +184,7 @@ int main(int __argc, char* __argv[])
 		std::cout << std::endl;
 	}
 
+
     sr_context.reset(new sr::RenderContext());
     sr_context->SetResolution(boot_width, boot_height);
     if (__argc > 1)
@@ -190,6 +199,11 @@ int main(int __argc, char* __argv[])
     {
         sr_context->WatchKernelFile(sr::ShaderStage::kGeometry, __argv[2]);
     }
+
+    gizmo.reset(new CubeGizmo());
+#define PERSPECTIVE(aspect) perspective(0.01f, 1000.f, 3.1415926534f*0.5f, (aspect))
+    Matrix_t projection = PERSPECTIVE(static_cast<float>(boot_width)/static_cast<float>(boot_height));
+
     glXMakeCurrent(display, 0, 0);
 
     using StdClock = std::chrono::high_resolution_clock;
@@ -200,16 +214,38 @@ int main(int __argc, char* __argv[])
         XEvent xevent;
         while (XCheckWindowEvent(display, window, kEventMask, &xevent))
         {
-            if (xevent.type == ConfigureNotify)
+            switch(xevent.type)
+            {
+            case ConfigureNotify:
             {
                 XConfigureEvent const& xcevent = xevent.xconfigure;
                 sr_context->SetResolution(xcevent.width, xcevent.height);
+                projection = PERSPECTIVE(static_cast<float>(xcevent.width)/static_cast<float>(xcevent.height));
+            } break;
+            case ButtonPress:
+            {
+                XButtonEvent const& xbevent = xevent.xbutton;
+                //std::cout << "Mouse press : " << xbevent.x << " " << xbevent.y << std::endl;
+            } break;
+            case ButtonRelease:
+            {
+                XButtonEvent const& xbevent = xevent.xbutton;
+                //std::cout << "Mouse release : " << xbevent.x << " " << xbevent.y << std::endl;
+            } break;
+            case MotionNotify:
+            {
+                XMotionEvent const& xmevent = xevent.xmotion;
+                //std::cout << "Mouse motion : " << xmevent.x << " " << xmevent.y << std::endl;
+            } break;
             }
         }
 
         auto start = StdClock::now();
+        glDisable(GL_MULTISAMPLE);
         if (!sr_context->RenderFrame()) break;
         //glFinish();
+        gizmo->Draw({ 0.f, 0.1f, -1.f }, projection);
+
         glXSwapBuffers(display, window);
         auto end = StdClock::now();
         //std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end-start).count() << std::endl;

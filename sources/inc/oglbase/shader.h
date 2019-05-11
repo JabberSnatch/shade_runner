@@ -23,7 +23,7 @@ namespace oglbase {
 using ShaderSources_t = std::vector<char const *>;
 using ShaderBinaries_t = std::vector<GLuint>;
 
-ShaderPtr CompileShader(GLenum _type, ShaderSources_t &_sources);
+ShaderPtr CompileShader(GLenum _type, ShaderSources_t const&_sources);
 ProgramPtr LinkProgram(ShaderBinaries_t const &_binaries);
 
 } // namespace oglbase

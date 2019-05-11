@@ -19,7 +19,7 @@
 namespace oglbase {
 
 ShaderPtr
-CompileShader(GLenum _type, ShaderSources_t &_sources)
+CompileShader(GLenum _type, ShaderSources_t const&_sources)
 {
 	GLsizei const source_count = boost::numeric_cast<GLsizei>(_sources.size());
 	ShaderPtr result{ glCreateShader(_type) };
