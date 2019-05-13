@@ -34,6 +34,8 @@ char const* enum_string(GLenum const _value)
 	case GL_STACK_UNDERFLOW: return "Stack underflow";
 	case GL_STACK_OVERFLOW: return "Stack overflow";
 
+    case GL_FRAMEBUFFER_COMPLETE: return "Framebuffer complete";
+
 	case GL_DEBUG_SOURCE_API: return "API";
 	case GL_DEBUG_SOURCE_WINDOW_SYSTEM: return "Window system";
 	case GL_DEBUG_SOURCE_SHADER_COMPILER: return "Shader compiler";

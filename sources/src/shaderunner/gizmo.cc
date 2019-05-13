@@ -76,8 +76,15 @@ struct CubeGizmo
 void
 CubeGizmo::Draw(Vec3_t const& location, Matrix_t const& projection) const
 {
+    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_STENCIL_TEST);
+    glStencilFunc(GL_GREATER, 1, 255u);
+    glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+
     static GLfloat const clear_depth{ 1.f };
     glClearBufferfv(GL_DEPTH, 0, &clear_depth);
+    glClearStencil(0);
+    glClear(GL_STENCIL_BUFFER_BIT);
 
     glUseProgram(shader_program_);
     {

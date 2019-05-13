@@ -40,12 +40,14 @@ struct ShaderDeleter;
 struct TextureDeleter;
 struct VAODeleter;
 struct BufferDeleter;
+struct FBODeleter;
 
 using ProgramPtr = Handle<ProgramDeleter>;
 using ShaderPtr = Handle<ShaderDeleter>;
 using TexturePtr = Handle<TextureDeleter>;
 using VAOPtr = Handle<VAODeleter>;
 using BufferPtr = Handle<BufferDeleter>;
+using FBOPtr = Handle<FBODeleter>;
 
 } // namespace oglbase
 

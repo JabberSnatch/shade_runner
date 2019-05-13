@@ -1,0 +1,71 @@
+/*
+ * ----------------------------------------------------------------------------
+ * "THE BEER-WARE LICENSE" (Revision 42):
+ * Samuel Bourasseau wrote this file. You can do whatever you want with this
+ * stuff. If we meet some day, and you think this stuff is worth it, you can
+ * buy me a beer in return.
+ * ----------------------------------------------------------------------------
+ */
+
+#include "oglbase/framebuffer.h"
+
+#include <algorithm>
+#include <cassert>
+
+#include "oglbase/error.h"
+
+namespace oglbase {
+
+Framebuffer::Framebuffer(GLsizei _width, GLsizei _height, AttachmentDescs const& _attachments, bool _depth_stencil) :
+    fbo_{ 0u },
+    depth_stencil_{ _depth_stencil },
+    attachments_{ _attachments }
+{
+    assert(!_attachments.empty());
+    glGenFramebuffers(1, fbo_.get());
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo_);
+
+    buffers_.reserve(_attachments.size() + (depth_stencil_ ? 1 : 0));
+    std::transform(
+        std::begin(_attachments), std::end(_attachments), std::back_inserter(buffers_),
+        [&_width, &_height](AttachmentDesc const& _desc) {
+            TexturePtr result{ 0u };
+            glGenTextures(1, result.get());
+            glBindTexture(GL_TEXTURE_2D, result);
+            glTexStorage2D(GL_TEXTURE_2D, 1, _desc.format, _width, _height);
+            glBindTexture(GL_TEXTURE_2D, 0);
+
+            glFramebufferTexture(GL_FRAMEBUFFER, _desc.point, result, 0);
+            return result;
+        });
+
+    if (depth_stencil_)
+    {
+        buffers_.emplace_back(0u);
+        glGenTextures(1, buffers_.back().get());
+        glBindTexture(GL_TEXTURE_2D, buffers_.back());
+        glTexStorage2D(GL_TEXTURE_2D, 1, GL_DEPTH24_STENCIL8, _width, _height);
+        glBindTexture(GL_TEXTURE_2D, 0);
+
+        glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, buffers_.back(), 0);
+    }
+
+    std::cout << "Framebuffer construction " << enum_string(glCheckFramebufferStatus(GL_FRAMEBUFFER)) << std::endl;
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void
+Framebuffer::bind() const
+{
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo_);
+    for (AttachmentDesc const& attachment : attachments_)
+        glDrawBuffer(attachment.point);
+}
+
+void
+Framebuffer::unbind() const
+{
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+} // namespace oglbase

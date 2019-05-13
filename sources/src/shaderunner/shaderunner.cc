@@ -360,7 +360,8 @@ RenderContext::RenderFrame()
 	glDisable(GL_BLEND);
 	glDisable(GL_SCISSOR_TEST);
     glEnable(GL_CULL_FACE);
-    //glEnable(GL_DEPTH_TEST);
+    glDisable(GL_STENCIL_TEST);
+    glDisable(GL_DEPTH_TEST);
     glFrontFace(GL_CCW);
 
 	static GLfloat const clear_color[]{ 0.5f, 0.5f, 0.5f, 1.f };

@@ -68,12 +68,22 @@ struct BufferDeleter
 	}
 };
 
+struct FBODeleter
+{
+    void operator()(GLuint _fbo)
+    {
+        std::cout << "gl fbo deleter " << _fbo << std::endl;
+        glDeleteFramebuffers(1, &_fbo);
+    }
+};
+
 
 template struct Handle<ProgramDeleter>;
 template struct Handle<ShaderDeleter>;
 template struct Handle<TextureDeleter>;
 template struct Handle<VAODeleter>;
 template struct Handle<BufferDeleter>;
+template struct Handle<FBODeleter>;
 
 
 } // namespace oglbase

@@ -20,6 +20,7 @@
 #include <GL/gl.h>
 #include <GL/glx.h>
 
+#include "oglbase/framebuffer.h"
 #include "shaderunner/shaderunner.h"
 #include "../shaderunner/gizmo.cc"
 
@@ -36,10 +37,11 @@ static const int kVisualAttributes[] = {
     GLX_RENDER_TYPE, GLX_RGBA_BIT,
     GLX_SAMPLE_BUFFERS, 1,
     GLX_SAMPLES, 1,
-#if 0
-    GLX_X_VISUAL_TYPE, GLX_TRUE_COLOR,
-    GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT,
     GLX_DEPTH_SIZE, 24,
+    GLX_STENCIL_SIZE, 8,
+#if 0
+    GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT,
+    GLX_X_VISUAL_TYPE, GLX_TRUE_COLOR,
 #endif
     None
 };
@@ -53,6 +55,7 @@ static const int kGLContextAttributes[] = {
 static constexpr int boot_width = 1280;
 static constexpr int boot_height = 720;
 
+std::unique_ptr<oglbase::Framebuffer> framebuffer;
 std::unique_ptr<sr::RenderContext> sr_context;
 std::unique_ptr<CubeGizmo> gizmo;
 
@@ -184,7 +187,12 @@ int main(int __argc, char* __argv[])
 		std::cout << std::endl;
 	}
 
+    oglbase::Framebuffer::AttachmentDescs const fbo_attachments{
+        { GL_COLOR_ATTACHMENT0, GL_RGBA8 },
+        //{ GL_COLOR_ATTACHMENT1, GL_R32F }
+    };
 
+    framebuffer.reset(new oglbase::Framebuffer(boot_width, boot_height, fbo_attachments, true));
     sr_context.reset(new sr::RenderContext());
     sr_context->SetResolution(boot_width, boot_height);
     if (__argc > 1)
@@ -207,6 +215,8 @@ int main(int __argc, char* __argv[])
     glXMakeCurrent(display, 0, 0);
 
     using StdClock = std::chrono::high_resolution_clock;
+    int current_width = boot_width;
+    int current_height = boot_height;
 
     glXMakeCurrent(display, window, glx_context);
     for(;;)
@@ -219,6 +229,8 @@ int main(int __argc, char* __argv[])
             case ConfigureNotify:
             {
                 XConfigureEvent const& xcevent = xevent.xconfigure;
+                current_width = xcevent.width; current_height = xcevent.height;
+                framebuffer.reset(new oglbase::Framebuffer(xcevent.width, xcevent.height, fbo_attachments, true));
                 sr_context->SetResolution(xcevent.width, xcevent.height);
                 projection = PERSPECTIVE(static_cast<float>(xcevent.height)/static_cast<float>(xcevent.width));
             } break;
@@ -241,10 +253,21 @@ int main(int __argc, char* __argv[])
         }
 
         auto start = StdClock::now();
+        framebuffer->bind();
         glDisable(GL_MULTISAMPLE);
+        glClearStencil(0);
+        glClear(GL_STENCIL_BUFFER_BIT);
         if (!sr_context->RenderFrame()) break;
-        //glFinish();
-        gizmo->Draw({ 0.f, 0.1f, -1.f }, projection);
+        //gizmo->Draw({ 0.f, 0.1f, -1.f }, projection);
+        framebuffer->unbind();
+
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer->fbo_);
+        glReadBuffer(GL_COLOR_ATTACHMENT0);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+        glDrawBuffer(GL_BACK);
+        glBlitFramebuffer(0, 0, current_width, current_height,
+                          0, 0, current_width, current_height,
+                          GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
         glXSwapBuffers(display, window);
         auto end = StdClock::now();
@@ -253,7 +276,9 @@ int main(int __argc, char* __argv[])
     glXMakeCurrent(display, 0, 0);
 
     glXMakeCurrent(display, window, glx_context);
+    framebuffer.reset(nullptr);
     sr_context.reset(nullptr);
+    gizmo.reset(nullptr);
     glXMakeCurrent(display, 0, 0);
 
     glXDestroyContext(display, glx_context);
