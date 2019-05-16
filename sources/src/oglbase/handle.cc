@@ -72,7 +72,7 @@ struct FBODeleter
 {
     void operator()(GLuint _fbo)
     {
-        std::cout << "gl fbo deleter " << _fbo << std::endl;
+        std::cout << "gl fbo deleted " << _fbo << std::endl;
         glDeleteFramebuffers(1, &_fbo);
     }
 };

@@ -29,7 +29,6 @@ Framebuffer::Framebuffer(GLsizei _width, GLsizei _height, AttachmentDescs const&
     std::transform(
         std::begin(_attachments), std::end(_attachments), std::back_inserter(buffers_),
         [&_width, &_height, this](AttachmentDesc const& _desc) {
-            std::cout << "Texture allocation " << _desc.format << std::endl;
             TexturePtr result{ 0u };
             glGenTextures(1, result.get());
             glBindTexture(GL_TEXTURE_2D, result);

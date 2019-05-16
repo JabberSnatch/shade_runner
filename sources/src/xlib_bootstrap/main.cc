@@ -254,6 +254,8 @@ int main(int __argc, char* __argv[])
             {
                 XConfigureEvent const& xcevent = xevent.xconfigure;
 
+                if ((xcevent.width - current_width) * (xcevent.height - current_height))
+                {
                 // =============================================================
                 // FLAG(APP_CONTEXT)
                 current_width = xcevent.width; current_height = xcevent.height;
@@ -270,6 +272,7 @@ int main(int __argc, char* __argv[])
                 // FLAG(UI_CONTEXT)
                 projection = PERSPECTIVE(aspect_ratio);
                 // =============================================================
+                }
             } break;
             case ButtonPress:
             {
@@ -320,7 +323,7 @@ int main(int __argc, char* __argv[])
 
         static GLfloat const kGizmoClearColor[]{ 0.f, 0.f, 0.f, 0.f };
         glClearBufferfv(GL_COLOR, 1, &kGizmoClearColor[0]);
-        gizmo->Draw({ 0.f, 0.1f, -1.f }, projection);
+        //gizmo->Draw({ 0.f, 0.1f, -1.f }, projection);
 
         framebuffer->unbind();
 

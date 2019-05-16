@@ -155,7 +155,7 @@ void imageMain(inout vec4 frag_color, vec2 frag_coord)
 
 	vec3 bg_color = vec3(0.2);
 
-	float light_intensity = 2.0;
+	float light_intensity = 10.0;
 	vec3 lp = vec3(sin(iTime) * 7.0, cos(iTime) * 7.0, 3.0);
 
 	vec3 n = normal(position);
