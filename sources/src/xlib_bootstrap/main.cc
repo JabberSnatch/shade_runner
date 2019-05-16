@@ -52,13 +52,35 @@ static const int kGLContextAttributes[] = {
 };
 
 
+struct ApplicationHandles
+{
+    ~ApplicationHandles()
+    {
+        glXMakeCurrent(display, window, glx_context);
+        framebuffer.reset(nullptr);
+        sr_context.reset(nullptr);
+        gizmo_layer.reset(nullptr);
+        glXMakeCurrent(display, 0, 0);
+
+        glXDestroyContext(display, glx_context);
+        XDestroyWindow(display, window);
+        XCloseDisplay(display);
+    };
+    Display* display;
+    Window window;
+    GLXContext glx_context;
+    std::unique_ptr<oglbase::Framebuffer> framebuffer;
+    std::unique_ptr<sr::RenderContext> sr_context;
+    std::unique_ptr<GizmoLayer> gizmo_layer;
+};
+
+
 static constexpr int boot_width = 1280;
 static constexpr int boot_height = 720;
 
 std::unique_ptr<oglbase::Framebuffer> framebuffer;
 std::unique_ptr<sr::RenderContext> sr_context;
-std::unique_ptr<CubeGizmo> gizmo;
-
+std::unique_ptr<GizmoLayer> gizmo_layer;
 
 int main(int __argc, char* __argv[])
 {
@@ -74,13 +96,13 @@ int main(int __argc, char* __argv[])
     int mouse_x = 0;
     int mouse_y = 0;
     bool mouse_down = false;
+    int active_gizmo = 0;
 
 #define PERSPECTIVE(aspect) perspective(0.01f, 1000.f, 3.1415926534f*0.5f, (aspect))
     Matrix_t projection = PERSPECTIVE(aspect_ratio);
     // =========================================================================
 
-
-    Display* const display = XOpenDisplay(nullptr);
+    Display * const display = XOpenDisplay(nullptr);
     if (!display)
     {
         std::cerr << "Can't connect to X server" << std::endl;
@@ -129,9 +151,9 @@ int main(int __argc, char* __argv[])
     int const swa_mask = CWColormap | CWBorderPixel | CWEventMask;
 
     Window window = XCreateWindow(display, RootWindow(display, visual_info->screen),
-                                  0, 0, boot_width, boot_height, 0, visual_info->depth, InputOutput,
-                                  visual_info->visual,
-                                  swa_mask, &swa);
+                                   0, 0, boot_width, boot_height, 0, visual_info->depth, InputOutput,
+                                   visual_info->visual,
+                                   swa_mask, &swa);
     if (!window)
     {
         std::cerr << "Window creation failed" << std::endl;
@@ -170,8 +192,8 @@ int main(int __argc, char* __argv[])
         glXGetProcAddressARB((GLubyte const*)"glXSwapIntervalMESA")
         );
 
-    GLXContext const glx_context = glXCreateContextAttribsARB(display, selected_config, 0,
-                                                              True, kGLContextAttributes);
+    GLXContext glx_context = glXCreateContextAttribsARB(display, selected_config, 0,
+                                                     True, kGLContextAttributes);
     XSync(display, False);
     if (!glx_context)
     {
@@ -212,12 +234,14 @@ int main(int __argc, char* __argv[])
         { GL_COLOR_ATTACHMENT1, GL_R32F }
     };
 
-    framebuffer.reset(new oglbase::Framebuffer(current_width, current_height, fbo_attachments, true));
+    framebuffer = std::make_unique<oglbase::Framebuffer>(
+        current_width, current_height, fbo_attachments, true
+    );
     // =========================================================================
 
     // =========================================================================
     // FLAG(SR_CONTEXT)
-    sr_context.reset(new sr::RenderContext());
+    sr_context = std::make_unique<sr::RenderContext>();
     sr_context->SetResolution(current_width, current_height);
     if (__argc > 1)
     {
@@ -235,7 +259,16 @@ int main(int __argc, char* __argv[])
 
     // =========================================================================
     // FLAG(UI_CONTEXT)
-    gizmo.reset(new CubeGizmo());
+    static Vec3_t const kGizmoColorOff{ 0.f, 1.f, 0.f };
+    static Vec3_t const kGizmoColorOn{ 1.f, 0.f, 0.f };
+#if 1
+    gizmo_layer = std::make_unique<GizmoLayer>(projection);
+    for (float i = 0.f; i < 10.f; i+=1.f)
+        for (float j = 0.f; j < 10.f; j+=1.f)
+            for (float k = 0.f; k < 10.f; k+=1.f)
+                gizmo_layer->gizmos_.emplace_back(
+                    GizmoDesc{ Vec3_t{ i - 5.f, j - 5.f, -k }, kGizmoColorOff});
+#endif
     // =========================================================================
 
     glXMakeCurrent(display, 0, 0);
@@ -243,7 +276,7 @@ int main(int __argc, char* __argv[])
     using StdClock = std::chrono::high_resolution_clock;
 
     glXMakeCurrent(display, window, glx_context);
-    for(;;)
+    for(bool run = true; run;)
     {
         XEvent xevent;
         while (XCheckWindowEvent(display, window, kEventMask, &xevent))
@@ -271,6 +304,9 @@ int main(int __argc, char* __argv[])
                 // =============================================================
                 // FLAG(UI_CONTEXT)
                 projection = PERSPECTIVE(aspect_ratio);
+#if 1
+                gizmo_layer->projection_ = projection;
+#endif
                 // =============================================================
                 }
             } break;
@@ -288,6 +324,11 @@ int main(int __argc, char* __argv[])
                 // =============================================================
                 // FLAG(UI_CONTEXT)
                 mouse_down = false;
+#if 1
+                if (active_gizmo)
+                    gizmo_layer->gizmos_[active_gizmo-1].color_ = kGizmoColorOff;
+#endif
+                active_gizmo = 0;
                 // =============================================================
             } break;
             case MotionNotify:
@@ -298,21 +339,41 @@ int main(int __argc, char* __argv[])
                 mouse_x = xmevent.x; mouse_y = current_height - xmevent.y;
                 // =============================================================
             } break;
+            case DestroyNotify:
+            {
+                XDestroyWindowEvent const& xdwevent = xevent.xdestroywindow;
+                std::cout << "window destroy" << std::endl;
+                run = !(xdwevent.display == display && xdwevent.window == window);
+            } break;
             }
         }
+        if (!run) break;
 
         // =====================================================================
         // FLAG(UI_CONTEXT)
-        if (mouse_down) {
-            glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer->fbo_);
+#if 1
+        if (mouse_down)
+        {
+            framebuffer->bind();
             glReadBuffer(GL_COLOR_ATTACHMENT1);
-            int gizmo_id;
+            int gizmo_id = 0;
+            static_assert(sizeof(int) == sizeof(float), "");
             glReadPixels(mouse_x, mouse_y,
                          1, 1,
                          GL_RED, GL_FLOAT, (float*)&gizmo_id);
+            glReadBuffer(GL_NONE);
             framebuffer->unbind();
-            std::cout << std::to_string(gizmo_id) << std::endl;
+#if 1
+            if (gizmo_id != active_gizmo)
+            {
+                gizmo_layer->gizmos_[active_gizmo-1].color_ = kGizmoColorOff;
+                active_gizmo = gizmo_id;
+                if (active_gizmo)
+                    gizmo_layer->gizmos_[active_gizmo-1].color_ = kGizmoColorOn;
+            }
+#endif
         }
+#endif
         // =====================================================================
 
 
@@ -321,9 +382,9 @@ int main(int __argc, char* __argv[])
 
         if (!sr_context->RenderFrame()) break;
 
-        static GLfloat const kGizmoClearColor[]{ 0.f, 0.f, 0.f, 0.f };
-        glClearBufferfv(GL_COLOR, 1, &kGizmoClearColor[0]);
-        //gizmo->Draw({ 0.f, 0.1f, -1.f }, projection);
+#if 1
+        gizmo_layer->RenderFrame();
+#endif
 
         framebuffer->unbind();
 
@@ -339,16 +400,18 @@ int main(int __argc, char* __argv[])
         auto end = StdClock::now();
         //std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end-start).count() << std::endl;
     }
-    glXMakeCurrent(display, 0, 0);
+    //glXMakeCurrent(display, 0, 0);
 
+#if 0
     glXMakeCurrent(display, window, glx_context);
     framebuffer.reset(nullptr);
     sr_context.reset(nullptr);
-    gizmo.reset(nullptr);
+    gizmo_layer.reset(nullptr);
     glXMakeCurrent(display, 0, 0);
 
     glXDestroyContext(display, glx_context);
     XDestroyWindow(display, window);
     XCloseDisplay(display);
+#endif
     return 0;
 }
