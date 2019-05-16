@@ -41,7 +41,7 @@ struct Framebuffer
 
 private:
     bool depth_stencil_;
-    std::vector<AttachmentDesc> attachments_;
+    std::vector<GLenum> draw_buffers_;
     std::vector<TexturePtr> buffers_;
 };
 

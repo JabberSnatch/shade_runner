@@ -19,17 +19,17 @@
 
 static oglbase::ShaderSources_t const kGizmoGeom{
     SHADER_VERSION,
-    #include "../shaderunner/shaders/box.geom.h"
+    #include "./shaders/box.geom.h"
 };
 
 static oglbase::ShaderSources_t const kGizmoVert{
     SHADER_VERSION,
-    #include "../shaderunner/shaders/uPosition.vert.h"
+    #include "./shaders/uPosition.vert.h"
 };
 
 static oglbase::ShaderSources_t const kGizmoFrag{
     SHADER_VERSION,
-    #include "../shaderunner/shaders/white.frag.h"
+    #include "./shaders/gizmo.frag.h"
 };
 
 
@@ -76,15 +76,10 @@ struct CubeGizmo
 void
 CubeGizmo::Draw(Vec3_t const& location, Matrix_t const& projection) const
 {
-    glDisable(GL_DEPTH_TEST);
-    glEnable(GL_STENCIL_TEST);
-    glStencilFunc(GL_GREATER, 1, 255u);
-    glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+    glEnable(GL_DEPTH_TEST);
 
     static GLfloat const clear_depth{ 1.f };
     glClearBufferfv(GL_DEPTH, 0, &clear_depth);
-    glClearStencil(0);
-    glClear(GL_STENCIL_BUFFER_BIT);
 
     glUseProgram(shader_program_);
     {
@@ -96,6 +91,14 @@ CubeGizmo::Draw(Vec3_t const& location, Matrix_t const& projection) const
         int const position_loc = glGetUniformLocation(shader_program_, "uPosition");
         if (position_loc >= 0)
             glUniform3fv(position_loc, 1, &location[0]);
+    }
+
+    {
+        static Vec3_t const kGizmoColor{ 0.f, 1.f, 0.f };
+        int const color_loc = glGetUniformLocation(shader_program_, "uGizmoColor");
+        glUniform3fv(color_loc, 1, &kGizmoColor[0]);
+        int const id_loc = glGetUniformLocation(shader_program_, "uGizmoID");
+        glUniform1i(id_loc, 10);
     }
 
 	glBindVertexArray(dummy_vao_);

@@ -62,6 +62,24 @@ std::unique_ptr<CubeGizmo> gizmo;
 
 int main(int __argc, char* __argv[])
 {
+    // =========================================================================
+    // FLAG(APP_CONTEXT)
+    int current_width = boot_width;
+    int current_height = boot_height;
+    float aspect_ratio = static_cast<float>(current_height) / static_cast<float>(current_width);
+    // =========================================================================
+
+    // =========================================================================
+    // FLAG(UI_CONTEXT)
+    int mouse_x = 0;
+    int mouse_y = 0;
+    bool mouse_down = false;
+
+#define PERSPECTIVE(aspect) perspective(0.01f, 1000.f, 3.1415926534f*0.5f, (aspect))
+    Matrix_t projection = PERSPECTIVE(aspect_ratio);
+    // =========================================================================
+
+
     Display* const display = XOpenDisplay(nullptr);
     if (!display)
     {
@@ -187,14 +205,20 @@ int main(int __argc, char* __argv[])
 		std::cout << std::endl;
 	}
 
+    // =========================================================================
+    // FLAG(APP_CONTEXT)
     oglbase::Framebuffer::AttachmentDescs const fbo_attachments{
         { GL_COLOR_ATTACHMENT0, GL_RGBA8 },
-        //{ GL_COLOR_ATTACHMENT1, GL_R32F }
+        { GL_COLOR_ATTACHMENT1, GL_R32F }
     };
 
-    framebuffer.reset(new oglbase::Framebuffer(boot_width, boot_height, fbo_attachments, true));
+    framebuffer.reset(new oglbase::Framebuffer(current_width, current_height, fbo_attachments, true));
+    // =========================================================================
+
+    // =========================================================================
+    // FLAG(SR_CONTEXT)
     sr_context.reset(new sr::RenderContext());
-    sr_context->SetResolution(boot_width, boot_height);
+    sr_context->SetResolution(current_width, current_height);
     if (__argc > 1)
     {
         sr_context->WatchKernelFile(sr::ShaderStage::kFragment, __argv[1]);
@@ -207,16 +231,16 @@ int main(int __argc, char* __argv[])
     {
         sr_context->WatchKernelFile(sr::ShaderStage::kGeometry, __argv[2]);
     }
+    // =========================================================================
 
+    // =========================================================================
+    // FLAG(UI_CONTEXT)
     gizmo.reset(new CubeGizmo());
-#define PERSPECTIVE(aspect) perspective(0.01f, 1000.f, 3.1415926534f*0.5f, (aspect))
-    Matrix_t projection = PERSPECTIVE(static_cast<float>(boot_height)/static_cast<float>(boot_width));
+    // =========================================================================
 
     glXMakeCurrent(display, 0, 0);
 
     using StdClock = std::chrono::high_resolution_clock;
-    int current_width = boot_width;
-    int current_height = boot_height;
 
     glXMakeCurrent(display, window, glx_context);
     for(;;)
@@ -229,36 +253,75 @@ int main(int __argc, char* __argv[])
             case ConfigureNotify:
             {
                 XConfigureEvent const& xcevent = xevent.xconfigure;
+
+                // =============================================================
+                // FLAG(APP_CONTEXT)
                 current_width = xcevent.width; current_height = xcevent.height;
-                framebuffer.reset(new oglbase::Framebuffer(xcevent.width, xcevent.height, fbo_attachments, true));
-                sr_context->SetResolution(xcevent.width, xcevent.height);
-                projection = PERSPECTIVE(static_cast<float>(xcevent.height)/static_cast<float>(xcevent.width));
+                aspect_ratio =
+                    static_cast<float>(current_height) / static_cast<float>(current_width);
+                framebuffer.reset(new oglbase::Framebuffer(current_width, current_height,
+                                                           fbo_attachments, true));
+                // =============================================================
+                // =============================================================
+                // FLAG(SR_CONTEXT)
+                sr_context->SetResolution(current_width, current_height);
+                // =============================================================
+                // =============================================================
+                // FLAG(UI_CONTEXT)
+                projection = PERSPECTIVE(aspect_ratio);
+                // =============================================================
             } break;
             case ButtonPress:
             {
-                XButtonEvent const& xbevent = xevent.xbutton;
-                //std::cout << "Mouse press : " << xbevent.x << " " << xbevent.y << std::endl;
+                //XButtonEvent const& xbevent = xevent.xbutton;
+                // =============================================================
+                // FLAG(UI_CONTEXT)
+                mouse_down = true;
+                // =============================================================
             } break;
             case ButtonRelease:
             {
-                XButtonEvent const& xbevent = xevent.xbutton;
-                //std::cout << "Mouse release : " << xbevent.x << " " << xbevent.y << std::endl;
+                //XButtonEvent const& xbevent = xevent.xbutton;
+                // =============================================================
+                // FLAG(UI_CONTEXT)
+                mouse_down = false;
+                // =============================================================
             } break;
             case MotionNotify:
             {
                 XMotionEvent const& xmevent = xevent.xmotion;
-                //std::cout << "Mouse motion : " << xmevent.x << " " << xmevent.y << std::endl;
+                // =============================================================
+                // FLAG(UI_CONTEXT)
+                mouse_x = xmevent.x; mouse_y = current_height - xmevent.y;
+                // =============================================================
             } break;
             }
         }
 
+        // =====================================================================
+        // FLAG(UI_CONTEXT)
+        if (mouse_down) {
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer->fbo_);
+            glReadBuffer(GL_COLOR_ATTACHMENT1);
+            int gizmo_id;
+            glReadPixels(mouse_x, mouse_y,
+                         1, 1,
+                         GL_RED, GL_FLOAT, (float*)&gizmo_id);
+            framebuffer->unbind();
+            std::cout << std::to_string(gizmo_id) << std::endl;
+        }
+        // =====================================================================
+
+
         auto start = StdClock::now();
         framebuffer->bind();
-        glDisable(GL_MULTISAMPLE);
-        glClearStencil(0);
-        glClear(GL_STENCIL_BUFFER_BIT);
+
         if (!sr_context->RenderFrame()) break;
-        //gizmo->Draw({ 0.f, 0.1f, -1.f }, projection);
+
+        static GLfloat const kGizmoClearColor[]{ 0.f, 0.f, 0.f, 0.f };
+        glClearBufferfv(GL_COLOR, 1, &kGizmoClearColor[0]);
+        gizmo->Draw({ 0.f, 0.1f, -1.f }, projection);
+
         framebuffer->unbind();
 
         glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer->fbo_);

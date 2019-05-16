@@ -357,12 +357,13 @@ RenderContext::RenderFrame()
 
 	assert(!oglbase::ClearError());
 
+    glDisable(GL_MULTISAMPLE);
 	glDisable(GL_BLEND);
 	glDisable(GL_SCISSOR_TEST);
-    glEnable(GL_CULL_FACE);
     glDisable(GL_STENCIL_TEST);
     glDisable(GL_DEPTH_TEST);
     glFrontFace(GL_CCW);
+    glEnable(GL_CULL_FACE);
 
 	static GLfloat const clear_color[]{ 0.5f, 0.5f, 0.5f, 1.f };
 	glClearBufferfv(GL_COLOR, 0, clear_color);
