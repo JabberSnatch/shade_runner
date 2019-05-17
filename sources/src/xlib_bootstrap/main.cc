@@ -261,14 +261,12 @@ int main(int __argc, char* __argv[])
     // FLAG(UI_CONTEXT)
     static Vec3_t const kGizmoColorOff{ 0.f, 1.f, 0.f };
     static Vec3_t const kGizmoColorOn{ 1.f, 0.f, 0.f };
-#if 1
     gizmo_layer = std::make_unique<GizmoLayer>(projection);
     for (float i = 0.f; i < 10.f; i+=1.f)
         for (float j = 0.f; j < 10.f; j+=1.f)
             for (float k = 0.f; k < 10.f; k+=1.f)
-                gizmo_layer->gizmos_.emplace_back(
-                    GizmoDesc{ Vec3_t{ i - 5.f, j - 5.f, -k }, kGizmoColorOff});
-#endif
+                gizmo_layer->gizmos_.push_back(
+                    GizmoDesc{ Vec3_t{ i - 5.f, j - 5.f, -k }, Vec3_t{ 0.f, 1.f, 0.f } });
     // =========================================================================
 
     glXMakeCurrent(display, 0, 0);
@@ -304,9 +302,7 @@ int main(int __argc, char* __argv[])
                 // =============================================================
                 // FLAG(UI_CONTEXT)
                 projection = PERSPECTIVE(aspect_ratio);
-#if 1
                 gizmo_layer->projection_ = projection;
-#endif
                 // =============================================================
                 }
             } break;
@@ -324,10 +320,8 @@ int main(int __argc, char* __argv[])
                 // =============================================================
                 // FLAG(UI_CONTEXT)
                 mouse_down = false;
-#if 1
                 if (active_gizmo)
                     gizmo_layer->gizmos_[active_gizmo-1].color_ = kGizmoColorOff;
-#endif
                 active_gizmo = 0;
                 // =============================================================
             } break;
@@ -351,8 +345,7 @@ int main(int __argc, char* __argv[])
 
         // =====================================================================
         // FLAG(UI_CONTEXT)
-#if 1
-        if (mouse_down)
+        //if (mouse_down)
         {
             framebuffer->bind();
             glReadBuffer(GL_COLOR_ATTACHMENT1);
@@ -360,20 +353,19 @@ int main(int __argc, char* __argv[])
             static_assert(sizeof(int) == sizeof(float), "");
             glReadPixels(mouse_x, mouse_y,
                          1, 1,
-                         GL_RED, GL_FLOAT, (float*)&gizmo_id);
+                         GL_RED, GL_FLOAT, (GLfloat*)&gizmo_id);
             glReadBuffer(GL_NONE);
             framebuffer->unbind();
-#if 1
+
             if (gizmo_id != active_gizmo)
             {
-                gizmo_layer->gizmos_[active_gizmo-1].color_ = kGizmoColorOff;
+                if (active_gizmo)
+                    gizmo_layer->gizmos_[active_gizmo-1].color_ = kGizmoColorOff;
                 active_gizmo = gizmo_id;
                 if (active_gizmo)
                     gizmo_layer->gizmos_[active_gizmo-1].color_ = kGizmoColorOn;
             }
-#endif
         }
-#endif
         // =====================================================================
 
 
@@ -382,9 +374,7 @@ int main(int __argc, char* __argv[])
 
         if (!sr_context->RenderFrame()) break;
 
-#if 1
         gizmo_layer->RenderFrame();
-#endif
 
         framebuffer->unbind();
 
@@ -400,9 +390,8 @@ int main(int __argc, char* __argv[])
         auto end = StdClock::now();
         //std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end-start).count() << std::endl;
     }
-    //glXMakeCurrent(display, 0, 0);
+    glXMakeCurrent(display, 0, 0);
 
-#if 0
     glXMakeCurrent(display, window, glx_context);
     framebuffer.reset(nullptr);
     sr_context.reset(nullptr);
@@ -412,6 +401,5 @@ int main(int __argc, char* __argv[])
     glXDestroyContext(display, glx_context);
     XDestroyWindow(display, window);
     XCloseDisplay(display);
-#endif
     return 0;
 }
