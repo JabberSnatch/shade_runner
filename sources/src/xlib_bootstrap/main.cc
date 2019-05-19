@@ -11,10 +11,12 @@
 #include <memory>
 
 #include <chrono>
+#include <cstring>
 
 #include <X11/Xlib.h>
-#include <X11/Xutil.h>
 #include <X11/Xos.h>
+#include <X11/Xatom.h>
+#include <X11/Xutil.h>
 
 #include <GL/glew.h>
 #include <GL/gl.h>
@@ -161,6 +163,34 @@ int main(int __argc, char* __argv[])
     }
     XFree(visual_info);
 
+    Atom const wm_delete_window = [](Display* display, Window window)
+    {
+        int wm_protocols_size = 0;
+        Atom* wm_protocols = nullptr;
+        Status result = XGetWMProtocols(display, window, &wm_protocols, &wm_protocols_size);
+        std::cout << "XGetWMProtocols status " << std::to_string(result) << std::endl;
+        std::cout << "protocols found " << std::to_string(wm_protocols_size) << std::endl;
+        XFree(wm_protocols);
+
+        Atom wm_delete_window = XInternAtom(display, "WM_DELETE_WINDOW", True);
+        if (wm_delete_window == None)
+            std::cout << "[ERROR] WM_DELETE_WINDOW doesn't exist" << std::endl;
+        result = XSetWMProtocols(display, window, &wm_delete_window, 1);
+        std::cout << "XSetWMProtocols status " << std::to_string(result) << std::endl;
+
+        result = XGetWMProtocols(display, window, &wm_protocols, &wm_protocols_size);
+        std::cout << "XGetWMProtocols status " << std::to_string(result) << std::endl;
+        std::cout << "protocols found " << std::to_string(wm_protocols_size) << std::endl;
+        XFree(wm_protocols);
+
+        int property_count = 0;
+        Atom* x_properties = XListProperties(display, window, &property_count);
+        std::cout << "properties found " << std::to_string(property_count) << std::endl;
+        XFree(x_properties);
+
+        return wm_delete_window;
+    }(display, window);
+
     static constexpr long kEventMask =
         StructureNotifyMask |
         ButtonPressMask | ButtonReleaseMask |
@@ -274,8 +304,12 @@ int main(int __argc, char* __argv[])
     using StdClock = std::chrono::high_resolution_clock;
 
     glXMakeCurrent(display, window, glx_context);
+    int i = 0;
+    float frame_time = 0.f;
     for(bool run = true; run;)
     {
+        auto start = StdClock::now();
+
         XEvent xevent;
         while (XCheckWindowEvent(display, window, kEventMask, &xevent))
         {
@@ -339,7 +373,15 @@ int main(int __argc, char* __argv[])
                 std::cout << "window destroy" << std::endl;
                 run = !(xdwevent.display == display && xdwevent.window == window);
             } break;
+            default: break;
             }
+        }
+
+        if (XCheckTypedWindowEvent(display, window, ClientMessage, &xevent))
+        {
+            std::cout << "Client message" << std::endl;
+            std::cout << XGetAtomName(display, xevent.xclient.message_type) << std::endl;
+            run = !(xevent.xclient.data.l[0] == wm_delete_window);
         }
         if (!run) break;
 
@@ -369,7 +411,6 @@ int main(int __argc, char* __argv[])
         // =====================================================================
 
 
-        auto start = StdClock::now();
         framebuffer->bind();
 
         if (!sr_context->RenderFrame()) break;
@@ -387,8 +428,16 @@ int main(int __argc, char* __argv[])
                           GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
         glXSwapBuffers(display, window);
+
         auto end = StdClock::now();
-        //std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end-start).count() << std::endl;
+        frame_time += static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(end-start).count());
+        static int const kFrameInterval = 0xff;
+        i = (i + 1) & kFrameInterval;
+        if (!i)
+        {
+            std::cout << "avg frame_time: " << (frame_time / float(kFrameInterval)) << std::endl;
+            frame_time = 0.f;
+        }
     }
     glXMakeCurrent(display, 0, 0);
 
