@@ -7,13 +7,16 @@
  * ----------------------------------------------------------------------------
  */
 
+#include "uibase/gizmo_layer.h"
+
 #include <cassert>
-#include <cmath>
+#include <iostream>
 
 #include "oglbase/error.h"
-#include "oglbase/handle.h"
 #include "oglbase/shader.h"
 
+
+namespace {
 
 #define SHADER_VERSION "#version 330 core\n"
 
@@ -32,57 +35,32 @@ static oglbase::ShaderSources_t const kGizmoFrag{
     #include "./shaders/gizmo.frag.h"
 };
 
+} // namespace
 
-using Matrix_t = std::array<float, 16>;
-using Vec3_t = std::array<float, 3>;
 
-Matrix_t perspective(float n, float f, float alpha, float how)
+namespace uibase {
+
+
+GizmoProgram::GizmoProgram() :
+    shader_program_{ 0u },
+    dummy_vao_{ 0u }
 {
-    float inv_tan_half_alpha = 1.f / std::tan(alpha * .5f);
-    float inv_fmn = 1.f / (f-n);
-    return Matrix_t{
-        inv_tan_half_alpha, 0.f, 0.f, 0.f,
-        0.f, (1.f/how)*inv_tan_half_alpha, 0.f, 0.f,
-        0.f, 0.f, (-(f+n))*inv_fmn, -1.f,
-        0.f, 0.f, -2.f*f*n*inv_fmn, 0.f
+    glGenVertexArrays(1, dummy_vao_.get());
+
+    std::array<oglbase::ShaderPtr, 3> const shaders{
+        oglbase::CompileShader(GL_VERTEX_SHADER, kGizmoVert),
+        oglbase::CompileShader(GL_GEOMETRY_SHADER, kGizmoGeom),
+        oglbase::CompileShader(GL_FRAGMENT_SHADER, kGizmoFrag)
     };
+    oglbase::ShaderBinaries_t const binaries{ shaders[0], shaders[1], shaders[2] };
+    shader_program_ = oglbase::LinkProgram(binaries);
+    std::cout << oglbase::enum_string(glGetError()) << std::endl;
+    assert(shader_program_);
 }
 
-struct GizmoDesc
-{
-    Vec3_t position_;
-    Vec3_t color_;
-};
-
-struct Gizmo
-{
-    Gizmo() :
-        shader_program_{ 0u },
-        dummy_vao_{ 0u }
-    {
-		glGenVertexArrays(1, dummy_vao_.get());
-
-        std::array<oglbase::ShaderPtr, 3> const shaders{
-            oglbase::CompileShader(GL_VERTEX_SHADER, kGizmoVert),
-            oglbase::CompileShader(GL_GEOMETRY_SHADER, kGizmoGeom),
-            oglbase::CompileShader(GL_FRAGMENT_SHADER, kGizmoFrag)
-        };
-        oglbase::ShaderBinaries_t const binaries{ shaders[0], shaders[1], shaders[2] };
-        shader_program_ = oglbase::LinkProgram(binaries);
-        std::cout << oglbase::enum_string(glGetError()) << std::endl;
-        assert(shader_program_);
-    }
-
-    void Draw(GizmoDesc const &_desc, unsigned _id, Matrix_t const& _projection) const;
-
-    oglbase::ProgramPtr shader_program_;
-    oglbase::VAOPtr dummy_vao_;
-};
-
 void
-Gizmo::Draw(GizmoDesc const &_desc, unsigned _id, Matrix_t const& _projection) const
+GizmoProgram::Draw(GizmoDesc const &_desc, unsigned _id, Matrix_t const& _projection) const
 {
-
     glUseProgram(shader_program_);
     {
         int const projection_loc = glGetUniformLocation(shader_program_, "uProjectionMat");
@@ -111,18 +89,6 @@ Gizmo::Draw(GizmoDesc const &_desc, unsigned _id, Matrix_t const& _projection) c
 }
 
 
-struct GizmoLayer
-{
-    GizmoLayer(Matrix_t const& _projection) :
-        projection_{ _projection }
-    {}
-    void RenderFrame() const;
-    Matrix_t projection_;
-    std::vector<GizmoDesc> gizmos_;
-    Gizmo renderable_;
-};
-
-
 void
 GizmoLayer::RenderFrame() const
 {
@@ -139,3 +105,6 @@ GizmoLayer::RenderFrame() const
         renderable_.Draw(gizmo_desc, i+1, projection_);
     }
 }
+
+
+} // namespace uibase

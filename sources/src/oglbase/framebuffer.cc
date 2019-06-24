@@ -57,14 +57,14 @@ Framebuffer::Framebuffer(GLsizei _width, GLsizei _height, AttachmentDescs const&
 }
 
 void
-Framebuffer::bind() const
+Framebuffer::Bind() const
 {
     glBindFramebuffer(GL_FRAMEBUFFER, fbo_);
     glDrawBuffers((GLsizei)draw_buffers_.size(), draw_buffers_.data());
 }
 
 void
-Framebuffer::unbind() const
+Framebuffer::Unbind() const
 {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }

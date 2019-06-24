@@ -22,9 +22,7 @@
 #include <GL/gl.h>
 #include <GL/glx.h>
 
-#include "oglbase/framebuffer.h"
-#include "shaderunner/shaderunner.h"
-#include "../shaderunner/gizmo.cc"
+#include "appbase/layer_mediator.h"
 
 using proc_glXCreateContextAttribsARB =
     GLXContext(*)(Display*, GLXFBConfig, GLXContext, Bool, int const*);
@@ -54,6 +52,7 @@ static const int kGLContextAttributes[] = {
 };
 
 
+#if 0
 struct ApplicationHandles
 {
     ~ApplicationHandles()
@@ -73,37 +72,18 @@ struct ApplicationHandles
     GLXContext glx_context;
     std::unique_ptr<oglbase::Framebuffer> framebuffer;
     std::unique_ptr<sr::RenderContext> sr_context;
-    std::unique_ptr<GizmoLayer> gizmo_layer;
+    std::unique_ptr<uibase::GizmoLayer> gizmo_layer;
 };
+#endif
 
 
 static constexpr int boot_width = 1280;
 static constexpr int boot_height = 720;
 
-std::unique_ptr<oglbase::Framebuffer> framebuffer;
-std::unique_ptr<sr::RenderContext> sr_context;
-std::unique_ptr<GizmoLayer> gizmo_layer;
+std::unique_ptr<appbase::LayerMediator> layer_mediator;
 
 int main(int __argc, char* __argv[])
 {
-    // =========================================================================
-    // FLAG(APP_CONTEXT)
-    int current_width = boot_width;
-    int current_height = boot_height;
-    float aspect_ratio = static_cast<float>(current_height) / static_cast<float>(current_width);
-    // =========================================================================
-
-    // =========================================================================
-    // FLAG(UI_CONTEXT)
-    int mouse_x = 0;
-    int mouse_y = 0;
-    bool mouse_down = false;
-    int active_gizmo = 0;
-
-#define PERSPECTIVE(aspect) perspective(0.01f, 1000.f, 3.1415926534f*0.5f, (aspect))
-    Matrix_t projection = PERSPECTIVE(aspect_ratio);
-    // =========================================================================
-
     Display * const display = XOpenDisplay(nullptr);
     if (!display)
     {
@@ -257,47 +237,24 @@ int main(int __argc, char* __argv[])
 		std::cout << std::endl;
 	}
 
-    // =========================================================================
-    // FLAG(APP_CONTEXT)
-    oglbase::Framebuffer::AttachmentDescs const fbo_attachments{
-        { GL_COLOR_ATTACHMENT0, GL_RGBA8 },
-        { GL_COLOR_ATTACHMENT1, GL_R32F }
-    };
-
-    framebuffer = std::make_unique<oglbase::Framebuffer>(
-        current_width, current_height, fbo_attachments, true
+    layer_mediator = std::make_unique<appbase::LayerMediator>(
+        appbase::Vec2i_t{ boot_width, boot_height },
+        appbase::LayerFlag::kShaderunner | appbase::LayerFlag::kGizmo
     );
-    // =========================================================================
 
-    // =========================================================================
-    // FLAG(SR_CONTEXT)
-    sr_context = std::make_unique<sr::RenderContext>();
-    sr_context->SetResolution(current_width, current_height);
     if (__argc > 1)
     {
-        sr_context->WatchKernelFile(sr::ShaderStage::kFragment, __argv[1]);
+        layer_mediator->sr_layer_->WatchKernelFile(sr::ShaderStage::kFragment, __argv[1]);
     }
     if (__argc > 3)
     {
-        sr_context->WatchKernelFile(sr::ShaderStage::kVertex, __argv[3]);
+        layer_mediator->sr_layer_->WatchKernelFile(sr::ShaderStage::kVertex, __argv[3]);
     }
     if (__argc > 2)
     {
-        sr_context->WatchKernelFile(sr::ShaderStage::kGeometry, __argv[2]);
+        layer_mediator->sr_layer_->WatchKernelFile(sr::ShaderStage::kGeometry, __argv[2]);
     }
-    // =========================================================================
 
-    // =========================================================================
-    // FLAG(UI_CONTEXT)
-    static Vec3_t const kGizmoColorOff{ 0.f, 1.f, 0.f };
-    static Vec3_t const kGizmoColorOn{ 1.f, 0.f, 0.f };
-    gizmo_layer = std::make_unique<GizmoLayer>(projection);
-    for (float i = 0.f; i < 10.f; i+=1.f)
-        for (float j = 0.f; j < 10.f; j+=1.f)
-            for (float k = 0.f; k < 10.f; k+=1.f)
-                gizmo_layer->gizmos_.push_back(
-                    GizmoDesc{ Vec3_t{ i - 5.f, j - 5.f, -k }, Vec3_t{ 0.f, 1.f, 0.f } });
-    // =========================================================================
 
     glXMakeCurrent(display, 0, 0);
 
@@ -319,53 +276,25 @@ int main(int __argc, char* __argv[])
             {
                 XConfigureEvent const& xcevent = xevent.xconfigure;
 
-                if ((xcevent.width - current_width) * (xcevent.height - current_height))
-                {
-                // =============================================================
-                // FLAG(APP_CONTEXT)
-                current_width = xcevent.width; current_height = xcevent.height;
-                aspect_ratio =
-                    static_cast<float>(current_height) / static_cast<float>(current_width);
-                framebuffer.reset(new oglbase::Framebuffer(current_width, current_height,
-                                                           fbo_attachments, true));
-                // =============================================================
-                // =============================================================
-                // FLAG(SR_CONTEXT)
-                sr_context->SetResolution(current_width, current_height);
-                // =============================================================
-                // =============================================================
-                // FLAG(UI_CONTEXT)
-                projection = PERSPECTIVE(aspect_ratio);
-                gizmo_layer->projection_ = projection;
-                // =============================================================
-                }
+                layer_mediator->ResizeEvent({ xcevent.width, xcevent.height });
             } break;
             case ButtonPress:
             {
                 //XButtonEvent const& xbevent = xevent.xbutton;
-                // =============================================================
-                // FLAG(UI_CONTEXT)
-                mouse_down = true;
-                // =============================================================
+
+                layer_mediator->MouseDown(true);
             } break;
             case ButtonRelease:
             {
                 //XButtonEvent const& xbevent = xevent.xbutton;
-                // =============================================================
-                // FLAG(UI_CONTEXT)
-                mouse_down = false;
-                if (active_gizmo)
-                    gizmo_layer->gizmos_[active_gizmo-1].color_ = kGizmoColorOff;
-                active_gizmo = 0;
-                // =============================================================
+
+                layer_mediator->MouseDown(false);
             } break;
             case MotionNotify:
             {
                 XMotionEvent const& xmevent = xevent.xmotion;
-                // =============================================================
-                // FLAG(UI_CONTEXT)
-                mouse_x = xmevent.x; mouse_y = current_height - xmevent.y;
-                // =============================================================
+
+                layer_mediator->MousePos({ xmevent.x, layer_mediator->state_.screen_size[1] - xmevent.y });
             } break;
             case DestroyNotify:
             {
@@ -385,47 +314,7 @@ int main(int __argc, char* __argv[])
         }
         if (!run) break;
 
-        // =====================================================================
-        // FLAG(UI_CONTEXT)
-        //if (mouse_down)
-        {
-            framebuffer->bind();
-            glReadBuffer(GL_COLOR_ATTACHMENT1);
-            int gizmo_id = 0;
-            static_assert(sizeof(int) == sizeof(float), "");
-            glReadPixels(mouse_x, mouse_y,
-                         1, 1,
-                         GL_RED, GL_FLOAT, (GLfloat*)&gizmo_id);
-            glReadBuffer(GL_NONE);
-            framebuffer->unbind();
-
-            if (gizmo_id != active_gizmo)
-            {
-                if (active_gizmo)
-                    gizmo_layer->gizmos_[active_gizmo-1].color_ = kGizmoColorOff;
-                active_gizmo = gizmo_id;
-                if (active_gizmo)
-                    gizmo_layer->gizmos_[active_gizmo-1].color_ = kGizmoColorOn;
-            }
-        }
-        // =====================================================================
-
-
-        framebuffer->bind();
-
-        if (!sr_context->RenderFrame()) break;
-
-        gizmo_layer->RenderFrame();
-
-        framebuffer->unbind();
-
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer->fbo_);
-        glReadBuffer(GL_COLOR_ATTACHMENT0);
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-        glDrawBuffer(GL_BACK);
-        glBlitFramebuffer(0, 0, current_width, current_height,
-                          0, 0, current_width, current_height,
-                          GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        if (!layer_mediator->RunFrame()) break;
 
         glXSwapBuffers(display, window);
 
@@ -442,9 +331,7 @@ int main(int __argc, char* __argv[])
     glXMakeCurrent(display, 0, 0);
 
     glXMakeCurrent(display, window, glx_context);
-    framebuffer.reset(nullptr);
-    sr_context.reset(nullptr);
-    gizmo_layer.reset(nullptr);
+    layer_mediator.reset(nullptr);
     glXMakeCurrent(display, 0, 0);
 
     glXDestroyContext(display, glx_context);

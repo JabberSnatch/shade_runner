@@ -34,8 +34,8 @@ struct Framebuffer
     Framebuffer(Framebuffer const&) = delete;
     Framebuffer& operator=(Framebuffer const&) = delete;
 
-    void bind() const;
-    void unbind() const;
+    void Bind() const;
+    void Unbind() const;
 
     FBOPtr fbo_;
 

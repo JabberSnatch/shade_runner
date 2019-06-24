@@ -33,6 +33,7 @@ set( OGLBASE_SOURCES
 
 set(UIBASE_DIR ${SOURCE_DIR}/uibase)
 set( UIBASE_SOURCES
+	 ${UIBASE_DIR}/gizmo_layer.cc
 	 ${UIBASE_DIR}/imguicontext.cc
 	 )
 
@@ -40,6 +41,11 @@ set(SHADERUNNER_DIR ${SOURCE_DIR}/shaderunner)
 set( SHADERUNNER_SOURCES
 	 ${SHADERUNNER_DIR}/shaderunner.cc
 	 ${SHADERUNNER_DIR}/shader_cache.cc
+	 )
+
+set(APPBASE_DIR ${SOURCE_DIR}/appbase)
+set( APPBASE_SOURCES
+     ${APPBASE_DIR}/layer_mediator.cc
 	 )
 
 set(WIN32_BOOTSTRAP_DIR ${SOURCE_DIR}/win32_bootstrap)
@@ -123,6 +129,17 @@ _common_project_options(shaderunner)
 
 # ______________________________________________________________________________
 
+add_library(appbase STATIC ${APPBASE_SOURCES})
+target_link_libraries(appbase
+	PRIVATE
+		oglbase
+		shaderunner
+		uibase
+)
+_common_project_options(appbase)
+
+# ______________________________________________________________________________
+
 add_executable(win32_bootstrap WIN32 ${WIN32_BOOTSTRAP_SOURCES})
 target_link_libraries(win32_bootstrap
 	PRIVATE
@@ -166,7 +183,7 @@ add_executable(xlib_bootstrap ${XLIB_BOOTSTRAP_SOURCES})
 target_link_libraries(xlib_bootstrap
     PRIVATE
 		X11
-		shaderunner
+		appbase
 )
 _common_project_options(xlib_bootstrap)
 
