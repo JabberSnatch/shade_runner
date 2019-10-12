@@ -7,8 +7,8 @@ vec2 VertexColor(vec2 cell)
 
 float VertexIntensity(vec2 cell, vec2 disp)
 {
-    mat2 colormat = mat2(.879, .00002563,
-                         .00018083, .7783);
+    mat2 colormat = mat2(.879, .2563 + (sin(iTime*3.) + 1.0) * 0.1,
+                         .1883, .7783 + (sin(iTime) + 1.0) * 0.1);
     return dot(disp, normalize(fract(colormat*cell) * 2.0 + vec2(1.0))) * 0.5 + 1.0;
 }
 
