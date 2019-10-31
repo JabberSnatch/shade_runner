@@ -102,8 +102,9 @@ void imageMain(inout vec4 frag_color, vec2 frag_coord)
     float stepcount = 3.0;
     float step = (t1-t0)/stepcount;
     if (x0 < 1.0)
-        for (float t = t0+step*0.5; t < t1; t += step)
+        for (float i = 0.0; i <= stepcount; i += 1.0)
     {
+        float t = t0 + step*i;
         vec3 p = ro + t*rd;
 
         vec3 color = vec3(0.0);
@@ -114,4 +115,7 @@ void imageMain(inout vec4 frag_color, vec2 frag_coord)
 
         frag_color.xyz += color.xxx / stepcount;
     }
+
+    frag_color = vec4(frag_color.x * 1.2, frag_color.x * 0.92, sqrt(2.0) * 0.3, 1.0);
+    frag_color *= exp(-pow(length((frag_coord / iResolution.xy) - vec2(0.5)), 2.0) / 0.25);
 }
