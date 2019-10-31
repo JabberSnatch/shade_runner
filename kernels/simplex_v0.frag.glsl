@@ -9,8 +9,8 @@ float VertexIntensity(vec2 cell)
 {
     mat2 colormat = mat2(.879, .2563 + (sin(iTime*3.) + 1.0) * 0.1,
                          .1883, .7783 + (sin(iTime) + 1.0) * 0.1);
-    vec2 x0 = colormat*cell;
-    return fract(length(x0));
+    vec2 x0 = colormat*sin(cell);
+    return fract(length(x0)) * 2.0 - 1.0;
 }
 
 void imageMain(inout vec4 frag_color, vec2 frag_coord)
@@ -35,7 +35,7 @@ void imageMain(inout vec4 frag_color, vec2 frag_coord)
 #endif
     vec2 uv = frag_coord / iResolution.xy;
     uv.x *= iResolution.x / iResolution.y;
-    uv *= 25.0;
+    uv *= 50.0;
 
     //uv -= skew * vec2(iTime * 0.5, -iTime * 0.5) * 5.0;
 
