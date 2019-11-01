@@ -9,6 +9,8 @@
 
 #include "appbase/layer_mediator.h"
 
+#include <imgui.h>
+
 #include "oglbase/framebuffer.h"
 #include "shaderunner/shaderunner.h"
 #include "uibase/gizmo_layer.h"
@@ -61,6 +63,11 @@ LayerMediator::LayerMediator(Vec2i_t const& _screen_size, unsigned _flags)
                     gizmo_layer_->gizmos_.push_back(
                         uibase::GizmoDesc{ uibase::Vec3_t{ i - 5.f, j - 5.f, -k }, kGizmoColorOff });
     }
+    if (_flags & LayerFlag::kImgui)
+    {
+        imgui_layer_ = std::make_unique<uibase::ImGuiContext>();
+        imgui_layer_->SetResolution(state_.screen_size[0], state_.screen_size[1]);
+    }
 }
 
 void
@@ -80,6 +87,11 @@ LayerMediator::ResizeEvent(Vec2i_t const& _size)
     {
         framebuffer_ = MakeGizmoLayerFramebuffer(state_.screen_size);
         gizmo_layer_->projection_ = MakeGizmoLayerProjection(state_.screen_size);
+    }
+
+    if (imgui_layer_)
+    {
+        imgui_layer_->SetResolution(state_.screen_size[0], state_.screen_size[1]);
     }
 }
 
@@ -158,6 +170,92 @@ LayerMediator::RunFrame()
         glBlitFramebuffer(0, 0, state_.screen_size[0], state_.screen_size[1],
                           0, 0, state_.screen_size[0], state_.screen_size[1],
                           GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    }
+
+    if (imgui_layer_)
+    {
+        ImGuiIO &io = ImGui::GetIO();
+
+        io.MouseDown[0] = state_.mouse_down;
+        io.MousePos = ImVec2(static_cast<float>(state_.mouse_pos[0]),
+                             static_cast<float>(state_.screen_size[1] - state_.mouse_pos[1]));
+
+		{
+			ImGuiStyle &style = ImGui::GetStyle();
+			style.FrameRounding = 0.f;
+			style.WindowRounding = 1.f;
+			style.ScrollbarRounding = 0.f;
+			style.GrabRounding = 2.f;
+		}
+
+		constexpr int kTextBufferSize = 512;
+		static bool show_demo_window = true;
+		static bool show_main_window = true;
+		static char fkernel_path_buffer[kTextBufferSize] = "";
+        static int uniform_count = 0;
+		ImGui::NewFrame();
+		if (ImGui::BeginMainMenuBar())
+		{
+			if (ImGui::BeginMenu("Windows"))
+			{
+				ImGui::MenuItem("Demo", nullptr, &show_demo_window);
+				if (ImGui::MenuItem("Main", nullptr, &show_main_window) && false)
+				{
+					std::string const &fkernel_path = sr_layer_->GetKernelPath(sr::ShaderStage::kFragment);
+					assert(fkernel_path.size() <= kTextBufferSize);
+					std::copy(fkernel_path.cbegin(), fkernel_path.cend(), &fkernel_path_buffer[0]);
+				}
+				ImGui::EndMenu();
+			}
+			ImGui::EndMainMenuBar();
+		}
+		if (show_demo_window)
+			ImGui::ShowDemoWindow(&show_demo_window);
+		if (show_main_window)
+		{
+            ImGui::SetNextWindowPos(ImVec2(350, 20), ImGuiCond_FirstUseEver);
+            ImGui::SetNextWindowSize(ImVec2(550, 680), ImGuiCond_FirstUseEver);
+
+			if (ImGui::Begin("Main Window", &show_main_window, 0))
+			{
+                {
+                    std::string const &fkernel_path = sr_layer_->GetKernelPath(sr::ShaderStage::kFragment);
+                    assert(fkernel_path.size() <= kTextBufferSize);
+                    std::copy(fkernel_path.cbegin(), fkernel_path.cend(), &fkernel_path_buffer[0]);
+
+                    ImGui::Text("Path");
+                    ImGui::PushItemWidth(-1);
+                    bool const state = ImGui::InputText("",
+                                                        fkernel_path_buffer,
+                                                        kTextBufferSize,
+                                                        ImGuiInputTextFlags_EnterReturnsTrue);
+                    ImGui::PopItemWidth();
+
+                    if (state)
+                        sr_layer_->WatchKernelFile(sr::ShaderStage::kFragment, fkernel_path_buffer);
+                }
+
+                if (ImGui::CollapsingHeader("Uniforms"))
+                {
+                    if (ImGui::Button("+"))
+                        ++uniform_count;
+                    ImGui::SameLine();
+                    if (ImGui::Button("-"))
+                        uniform_count = std::max(0, uniform_count-1);
+                    ImGui::PushItemWidth(-1);
+                    static char stub0[128] = "yolo";
+                    for (int i = 0; i < uniform_count; ++i)
+                        ImGui::InputText("", stub0, 128);
+                    ImGui::PopItemWidth();
+                }
+			}
+			ImGui::End();
+		}
+
+		ImGui::EndFrame();
+		ImGui::Render();
+
+        imgui_layer_->Render();
     }
 
     return result;

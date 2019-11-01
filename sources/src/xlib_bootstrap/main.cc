@@ -239,7 +239,9 @@ int main(int __argc, char* __argv[])
 
     layer_mediator = std::make_unique<appbase::LayerMediator>(
         appbase::Vec2i_t{ boot_width, boot_height },
-        appbase::LayerFlag::kShaderunner | appbase::LayerFlag::kGizmo
+        appbase::LayerFlag::kShaderunner
+        // | appbase::LayerFlag::kGizmo
+        | appbase::LayerFlag::kImgui
     );
 
     if (__argc > 1)

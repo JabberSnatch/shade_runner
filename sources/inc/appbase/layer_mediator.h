@@ -17,6 +17,7 @@
 #include "oglbase/framebuffer.h"
 #include "shaderunner/shaderunner.h"
 #include "uibase/gizmo_layer.h"
+#include "uibase/imguicontext.h"
 
 namespace appbase {
 
@@ -27,7 +28,7 @@ enum LayerFlag : unsigned
     kNone = 0u,
     kShaderunner = 1u << 0,
     kGizmo = 1u << 1,
-    //kImgui = 1u << 2,
+    kImgui = 1u << 2,
 };
 
 struct LayerMediator
@@ -49,6 +50,7 @@ struct LayerMediator
     State state_;
     std::unique_ptr<sr::RenderContext> sr_layer_;
     std::unique_ptr<uibase::GizmoLayer> gizmo_layer_;
+    std::unique_ptr<uibase::ImGuiContext> imgui_layer_;
     std::unique_ptr<oglbase::Framebuffer> framebuffer_;
 };
 

@@ -27,7 +27,7 @@ public:
 	~ImGuiContext();
 public:
 	void Render() const;
-	void SetResolution(int _wdith, int _height);
+	void SetResolution(int _width, int _height);
 public:
 	oglbase::TexturePtr font_texture_;
 	oglbase::ProgramPtr shader_program_;
