@@ -172,9 +172,10 @@ int main(int __argc, char* __argv[])
     }(display, window);
 
     static constexpr long kEventMask =
-        StructureNotifyMask |
-        ButtonPressMask | ButtonReleaseMask |
-        PointerMotionMask;
+        StructureNotifyMask
+        | ButtonPressMask | ButtonReleaseMask
+        | PointerMotionMask
+        | KeyPressMask | KeyReleaseMask;
     XSelectInput(display, window, kEventMask);
 
     XStoreName(display, window, "x11_bootstrap");
@@ -244,6 +245,21 @@ int main(int __argc, char* __argv[])
         | appbase::LayerFlag::kImgui
     );
 
+    layer_mediator->SpecialKey(appbase::eKey::kTab, (std::uint8_t)(XK_Tab & 0xff));
+    layer_mediator->SpecialKey(appbase::eKey::kLeft, (std::uint8_t)(XK_Left & 0xff));
+    layer_mediator->SpecialKey(appbase::eKey::kRight, (std::uint8_t)(XK_Right & 0xff));
+    layer_mediator->SpecialKey(appbase::eKey::kUp, (std::uint8_t)(XK_Up & 0xff));
+    layer_mediator->SpecialKey(appbase::eKey::kDown, (std::uint8_t)(XK_Down & 0xff));
+    layer_mediator->SpecialKey(appbase::eKey::kPageUp, (std::uint8_t)(XK_Page_Up & 0xff));
+    layer_mediator->SpecialKey(appbase::eKey::kPageDown, (std::uint8_t)(XK_Page_Down & 0xff));
+    layer_mediator->SpecialKey(appbase::eKey::kHome, (std::uint8_t)(XK_Home & 0xff));
+    layer_mediator->SpecialKey(appbase::eKey::kEnd, (std::uint8_t)(XK_End & 0xff));
+    layer_mediator->SpecialKey(appbase::eKey::kInsert, (std::uint8_t)(XK_Insert & 0xff));
+    layer_mediator->SpecialKey(appbase::eKey::kDelete, (std::uint8_t)(XK_Delete & 0xff));
+    layer_mediator->SpecialKey(appbase::eKey::kBackspace, (std::uint8_t)(XK_BackSpace & 0xff));
+    layer_mediator->SpecialKey(appbase::eKey::kEnter, (std::uint8_t)(XK_Return & 0xff));
+    layer_mediator->SpecialKey(appbase::eKey::kEscape, (std::uint8_t)(XK_Escape & 0xff));
+
     if (__argc > 1)
     {
         layer_mediator->sr_layer_->WatchKernelFile(sr::ShaderStage::kFragment, __argv[1]);
@@ -277,27 +293,52 @@ int main(int __argc, char* __argv[])
             case ConfigureNotify:
             {
                 XConfigureEvent const& xcevent = xevent.xconfigure;
-
                 layer_mediator->ResizeEvent({ xcevent.width, xcevent.height });
             } break;
-            case ButtonPress:
-            {
-                //XButtonEvent const& xbevent = xevent.xbutton;
 
-                layer_mediator->MouseDown(true);
-            } break;
+            case ButtonPress:
             case ButtonRelease:
             {
-                //XButtonEvent const& xbevent = xevent.xbutton;
+                layer_mediator->MouseDown(xevent.type == ButtonPress);
 
-                layer_mediator->MouseDown(false);
+                XButtonEvent const& xbevent = xevent.xbutton;
+                std::cout << "ButtonEvent " << std::hex
+                          << xbevent.state << " "
+                          << (xevent.type == ButtonPress) << std::endl;
             } break;
+
+            case KeyPress:
+            case KeyRelease:
+            {
+                XKeyEvent& xkevent = xevent.xkey;
+                {
+                    unsigned mod_mask = 0;
+                    {
+                        Window a, b; int c, d, e, f;
+                        XQueryPointer(display, window, &a, &b, &c, &d, &e, &f, &mod_mask);
+                    }
+
+                    std::uint32_t km = 0u;
+                    km |= (mod_mask & ControlMask) ? appbase::fKeyMod::kCtrl : 0u;
+                    km |= (mod_mask & ShiftMask) ? appbase::fKeyMod::kShift : 0u;
+                    km |= (mod_mask & Mod1Mask) ? appbase::fKeyMod::kAlt : 0u;
+
+                    KeySym ks = XLookupKeysym(&xkevent, xkevent.state);
+                    if (ks == NoSymbol)
+                        ks = XLookupKeysym(&xkevent, xkevent.state & ShiftMask);
+                    if (ks == NoSymbol)
+                        ks = XLookupKeysym(&xkevent, 0);
+
+                    layer_mediator->KeyDown((std::uint32_t)ks, km, (xevent.type == KeyPress));
+                }
+            } break;
+
             case MotionNotify:
             {
                 XMotionEvent const& xmevent = xevent.xmotion;
-
                 layer_mediator->MousePos({ xmevent.x, layer_mediator->state_.screen_size[1] - xmevent.y });
             } break;
+
             case DestroyNotify:
             {
                 XDestroyWindowEvent const& xdwevent = xevent.xdestroywindow;

@@ -47,6 +47,9 @@ namespace appbase {
 LayerMediator::LayerMediator(Vec2i_t const& _screen_size, unsigned _flags)
 {
     state_.screen_size = _screen_size;
+    std::fill(std::begin(state_.key_down), std::end(state_.key_down), false);
+    std::fill(std::begin(state_.key_map), std::end(state_.key_map), (eKey)0);
+
     if (_flags & LayerFlag::kShaderunner)
     {
         sr_layer_ = std::make_unique<sr::RenderContext>();
@@ -67,7 +70,36 @@ LayerMediator::LayerMediator(Vec2i_t const& _screen_size, unsigned _flags)
     {
         imgui_layer_ = std::make_unique<uibase::ImGuiContext>();
         imgui_layer_->SetResolution(state_.screen_size[0], state_.screen_size[1]);
+
+        ImGuiIO &io = ImGui::GetIO();
+        io.KeyMap[ImGuiKey_Tab] = eKey::kTab;
+        io.KeyMap[ImGuiKey_LeftArrow] = eKey::kLeft;
+        io.KeyMap[ImGuiKey_RightArrow] = eKey::kRight;
+        io.KeyMap[ImGuiKey_UpArrow] = eKey::kUp;
+        io.KeyMap[ImGuiKey_DownArrow] = eKey::kDown;
+        io.KeyMap[ImGuiKey_PageUp] = eKey::kPageUp;
+        io.KeyMap[ImGuiKey_PageDown] = eKey::kPageDown;
+        io.KeyMap[ImGuiKey_Home] = eKey::kHome;
+        io.KeyMap[ImGuiKey_End] = eKey::kEnd;
+        io.KeyMap[ImGuiKey_Insert] = eKey::kInsert;
+        io.KeyMap[ImGuiKey_Delete] = eKey::kDelete;
+        io.KeyMap[ImGuiKey_Backspace] = eKey::kBackspace;
+        io.KeyMap[ImGuiKey_Space] = ' ';
+        io.KeyMap[ImGuiKey_Enter] = eKey::kEnter;
+        io.KeyMap[ImGuiKey_Escape] = eKey::kEscape;
+        io.KeyMap[ImGuiKey_A] = 'a';
+        io.KeyMap[ImGuiKey_C] = 'c';
+        io.KeyMap[ImGuiKey_V] = 'v';
+        io.KeyMap[ImGuiKey_X] = 'x';
+        io.KeyMap[ImGuiKey_Y] = 'y';
+        io.KeyMap[ImGuiKey_Z] = 'z';
     }
+}
+
+void
+LayerMediator::SpecialKey(eKey _key, std::uint8_t _v)
+{
+    state_.key_map[_v] = _key;
 }
 
 void
@@ -145,6 +177,28 @@ LayerMediator::MousePos(Vec2i_t const& _pos)
     }
 }
 
+void
+LayerMediator::KeyDown(std::uint32_t _key, std::uint32_t _mod, bool _v)
+{
+    if (_key < eKey::kASCIIBegin || _key >= eKey::kASCIIEnd)
+        _key = state_.key_map[_key & 0xff];
+
+    state_.mod_down = _mod;
+
+    if (state_.key_down[_key] == _v)
+        return;
+    state_.key_down[_key] = _v;
+
+    if (imgui_layer_)
+    {
+        ImGuiIO &io = ImGui::GetIO();
+        io.KeysDown[_key] = _v;
+
+        if (_v && _key >= eKey::kASCIIBegin && _key < eKey::kASCIIEnd)
+            io.AddInputCharacter((ImWchar)_key);
+    }
+}
+
 bool
 LayerMediator::RunFrame()
 {
@@ -176,48 +230,48 @@ LayerMediator::RunFrame()
     {
         ImGuiIO &io = ImGui::GetIO();
 
+        io.KeyCtrl = state_.mod_down & fKeyMod::kCtrl;
+        io.KeyShift = state_.mod_down & fKeyMod::kShift;
+        io.KeyAlt = state_.mod_down & fKeyMod::kAlt;
+        io.KeySuper = false;
+
         io.MouseDown[0] = state_.mouse_down;
         io.MousePos = ImVec2(static_cast<float>(state_.mouse_pos[0]),
                              static_cast<float>(state_.screen_size[1] - state_.mouse_pos[1]));
 
-		{
-			ImGuiStyle &style = ImGui::GetStyle();
-			style.FrameRounding = 0.f;
-			style.WindowRounding = 1.f;
-			style.ScrollbarRounding = 0.f;
-			style.GrabRounding = 2.f;
-		}
+        {
+            ImGuiStyle &style = ImGui::GetStyle();
+            style.FrameRounding = 0.f;
+            style.WindowRounding = 1.f;
+            style.ScrollbarRounding = 0.f;
+            style.GrabRounding = 2.f;
+        }
 
-		constexpr int kTextBufferSize = 512;
-		static bool show_demo_window = true;
-		static bool show_main_window = true;
-		static char fkernel_path_buffer[kTextBufferSize] = "";
+        constexpr int kTextBufferSize = 512;
+        static bool show_demo_window = true;
+        static bool show_main_window = true;
+        static char fkernel_path_buffer[kTextBufferSize] = "";
         static int uniform_count = 0;
-		ImGui::NewFrame();
-		if (ImGui::BeginMainMenuBar())
-		{
-			if (ImGui::BeginMenu("Windows"))
-			{
-				ImGui::MenuItem("Demo", nullptr, &show_demo_window);
-				if (ImGui::MenuItem("Main", nullptr, &show_main_window) && false)
-				{
-					std::string const &fkernel_path = sr_layer_->GetKernelPath(sr::ShaderStage::kFragment);
-					assert(fkernel_path.size() <= kTextBufferSize);
-					std::copy(fkernel_path.cbegin(), fkernel_path.cend(), &fkernel_path_buffer[0]);
-				}
-				ImGui::EndMenu();
-			}
-			ImGui::EndMainMenuBar();
-		}
-		if (show_demo_window)
-			ImGui::ShowDemoWindow(&show_demo_window);
-		if (show_main_window)
-		{
+        ImGui::NewFrame();
+        if (ImGui::BeginMainMenuBar())
+        {
+            if (ImGui::BeginMenu("Windows"))
+            {
+                ImGui::MenuItem("Demo", nullptr, &show_demo_window);
+                ImGui::MenuItem("Main", nullptr, &show_main_window);
+                ImGui::EndMenu();
+            }
+            ImGui::EndMainMenuBar();
+        }
+        if (show_demo_window)
+            ImGui::ShowDemoWindow(&show_demo_window);
+        if (show_main_window)
+        {
             ImGui::SetNextWindowPos(ImVec2(350, 20), ImGuiCond_FirstUseEver);
             ImGui::SetNextWindowSize(ImVec2(550, 680), ImGuiCond_FirstUseEver);
 
-			if (ImGui::Begin("Main Window", &show_main_window, 0))
-			{
+            if (ImGui::Begin("Main Window", &show_main_window, 0))
+            {
                 {
                     std::string const &fkernel_path = sr_layer_->GetKernelPath(sr::ShaderStage::kFragment);
                     assert(fkernel_path.size() <= kTextBufferSize);
@@ -248,12 +302,12 @@ LayerMediator::RunFrame()
                         ImGui::InputText("", stub0, 128);
                     ImGui::PopItemWidth();
                 }
-			}
-			ImGui::End();
-		}
+            }
+            ImGui::End();
+        }
 
-		ImGui::EndFrame();
-		ImGui::Render();
+        ImGui::EndFrame();
+        ImGui::Render();
 
         imgui_layer_->Render();
     }
