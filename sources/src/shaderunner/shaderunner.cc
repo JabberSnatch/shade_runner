@@ -150,29 +150,29 @@ using Resolution_t = std::array<float, 2>;
 struct RenderContext::Impl_
 {
 public:
-	Impl_();
+    Impl_();
 
 public:
-	utility::Clock exec_time_;
+    utility::Clock exec_time_;
 
 public:
-	static constexpr float kKernelsUpdatePeriod = 1.f;
+    static constexpr float kKernelsUpdatePeriod = 1.f;
     void KernelsUpdate();
     std::unordered_map<ShaderStage, utility::File> kernel_files_;
 
 public:
-	Resolution_t resolution_;
+    Resolution_t resolution_;
 
 public:
-	static oglbase::ShaderPtr CompileKernel(ShaderStage _stage, oglbase::ShaderSources_t const &_kernel_sources);
-	std::set<ShaderStage> active_stages_;
-	ShaderCache shader_cache_;
-	oglbase::ProgramPtr shader_program_;
+    static oglbase::ShaderPtr CompileKernel(ShaderStage _stage, oglbase::ShaderSources_t const &_kernel_sources);
+    std::set<ShaderStage> active_stages_;
+    ShaderCache shader_cache_;
+    oglbase::ProgramPtr shader_program_;
 
     UniformContainer uniforms_;
 
 public:
-	oglbase::VAOPtr dummy_vao_;
+    oglbase::VAOPtr dummy_vao_;
 
     // GEOMETRY RENDERING EXPERIMENTS
 #ifdef SR_GEOMETRY_RENDERING
@@ -184,7 +184,7 @@ public:
 };
 
 RenderContext::Impl_::Impl_() :
-	exec_time_{ [this](float const _dt) {
+    exec_time_{ [this](float const _dt) {
         static auto kernels_timeout = [this, update_counter = 0.f](float _dt) mutable {
             update_counter += _dt;
             if (update_counter > kKernelsUpdatePeriod)
@@ -194,13 +194,13 @@ RenderContext::Impl_::Impl_() :
             }
         };
         kernels_timeout(_dt);
-	}},
-	resolution_{ 0.f, 0.f },
-	active_stages_{ ShaderStage::kVertex, ShaderStage::kFragment },
-	shader_cache_{},
-	shader_program_{ 0u },
+    }},
+    resolution_{ 0.f, 0.f },
+    active_stages_{ ShaderStage::kVertex, ShaderStage::kFragment },
+    shader_cache_{},
+    shader_program_{ 0u },
     uniforms_{},
-	dummy_vao_{ 0u }
+    dummy_vao_{ 0u }
 
 #ifdef SR_GEOMETRY_RENDERING
     ,point_count_{ 0 },
@@ -208,22 +208,22 @@ RenderContext::Impl_::Impl_() :
     vertex_buffer_{ 0u }
 #endif
 {
-	{
-		glGenVertexArrays(1, dummy_vao_.get());
-	}
+    {
+        glGenVertexArrays(1, dummy_vao_.get());
+    }
 
-	{
-		for (ShaderStage stage : active_stages_)
-		{
-			shader_cache_[stage] = CompileKernel(stage, DefaultKernel(stage));
-			assert(shader_cache_[stage]);
-		}
+    {
+        for (ShaderStage stage : active_stages_)
+        {
+            shader_cache_[stage] = CompileKernel(stage, DefaultKernel(stage));
+            assert(shader_cache_[stage]);
+        }
 
-		oglbase::ShaderBinaries_t const shader_binaries =
-			shader_cache_.select(active_stages_);
-		shader_program_ = oglbase::LinkProgram(shader_binaries);
-		assert(shader_program_);
-	}
+        oglbase::ShaderBinaries_t const shader_binaries =
+            shader_cache_.select(active_stages_);
+        shader_program_ = oglbase::LinkProgram(shader_binaries);
+        assert(shader_program_);
+    }
 
     //#define SR_GEOMETRY_RENDERING
 #ifdef SR_GEOMETRY_RENDERING
@@ -330,27 +330,27 @@ RenderContext::Impl_::KernelsUpdate()
 oglbase::ShaderPtr
 RenderContext::Impl_::CompileKernel(ShaderStage _stage, oglbase::ShaderSources_t const &_kernel_sources)
 {
-	static oglbase::ShaderSources_t const kKernelPrefix{
-		SR_GLSL_VERSION,
-		"uniform float " SR_SL_TIME_UNIFORM ";\n",
-		"uniform vec2 " SR_SL_RESOLUTION_UNIFORM ";\n"
-	};
-	oglbase::ShaderSources_t const &kernel_suffix = KernelSuffix(_stage);
+    static oglbase::ShaderSources_t const kKernelPrefix{
+        SR_GLSL_VERSION,
+        "uniform float " SR_SL_TIME_UNIFORM ";\n",
+        "uniform vec2 " SR_SL_RESOLUTION_UNIFORM ";\n"
+    };
+    oglbase::ShaderSources_t const &kernel_suffix = KernelSuffix(_stage);
 
-	oglbase::ShaderSources_t shader_sources{};
-	shader_sources.reserve(kKernelPrefix.size() + _kernel_sources.size() + kernel_suffix.size());
-	std::copy(kKernelPrefix.cbegin(), kKernelPrefix.cend(), std::back_inserter(shader_sources));
-	std::copy(_kernel_sources.cbegin(), _kernel_sources.cend(), std::back_inserter(shader_sources));
-	std::copy(kernel_suffix.cbegin(), kernel_suffix.cend(), std::back_inserter(shader_sources));
+    oglbase::ShaderSources_t shader_sources{};
+    shader_sources.reserve(kKernelPrefix.size() + _kernel_sources.size() + kernel_suffix.size());
+    std::copy(kKernelPrefix.cbegin(), kKernelPrefix.cend(), std::back_inserter(shader_sources));
+    std::copy(_kernel_sources.cbegin(), _kernel_sources.cend(), std::back_inserter(shader_sources));
+    std::copy(kernel_suffix.cbegin(), kernel_suffix.cend(), std::back_inserter(shader_sources));
 
-	return oglbase::CompileShader(ShaderStageToGLenum(_stage), shader_sources);
+    return oglbase::CompileShader(ShaderStageToGLenum(_stage), shader_sources);
 }
 
 
 // =============================================================================
 
 RenderContext::RenderContext() :
-	impl_(new RenderContext::Impl_())
+    impl_(new RenderContext::Impl_())
 {}
 
 RenderContext::~RenderContext()
@@ -359,35 +359,35 @@ RenderContext::~RenderContext()
 bool
 RenderContext::RenderFrame()
 {
-	float const elapsed_time = impl_->exec_time_.read();
-	impl_->exec_time_.step();
+    float const elapsed_time = impl_->exec_time_.read();
+    impl_->exec_time_.step();
 
-	bool start_over = true;
+    bool start_over = true;
 
-	assert(!oglbase::ClearError());
+    assert(!oglbase::ClearError());
 
     glDisable(GL_MULTISAMPLE);
-	glDisable(GL_BLEND);
-	glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_BLEND);
+    glDisable(GL_SCISSOR_TEST);
     glDisable(GL_STENCIL_TEST);
     glDisable(GL_DEPTH_TEST);
     glFrontFace(GL_CCW);
     glEnable(GL_CULL_FACE);
 
-	static GLfloat const clear_color[]{ 0.5f, 0.5f, 0.5f, 1.f };
-	glClearBufferfv(GL_COLOR, 0, clear_color);
+    static GLfloat const clear_color[]{ 0.5f, 0.5f, 0.5f, 1.f };
+    glClearBufferfv(GL_COLOR, 0, clear_color);
 
-	glUseProgram(impl_->shader_program_);
+    glUseProgram(impl_->shader_program_);
 
-	{
-		int const time_loc = glGetUniformLocation(impl_->shader_program_, SR_SL_TIME_UNIFORM);
-		if (time_loc >= 0)
-			glUniform1f(time_loc, elapsed_time);
+    {
+        int const time_loc = glGetUniformLocation(impl_->shader_program_, SR_SL_TIME_UNIFORM);
+        if (time_loc >= 0)
+            glUniform1f(time_loc, elapsed_time);
 
-		int const resolution_loc = glGetUniformLocation(impl_->shader_program_, SR_SL_RESOLUTION_UNIFORM);
-		if (resolution_loc >= 0)
-			glUniform2fv(resolution_loc, 1, &(impl_->resolution_[0]));
-	}
+        int const resolution_loc = glGetUniformLocation(impl_->shader_program_, SR_SL_RESOLUTION_UNIFORM);
+        if (resolution_loc >= 0)
+            glUniform2fv(resolution_loc, 1, &(impl_->resolution_[0]));
+    }
 
     for (std::pair<std::string, float> const& uniform : impl_->uniforms_)
     {
@@ -397,9 +397,9 @@ RenderContext::RenderFrame()
     }
 
 #ifndef SR_GEOMETRY_RENDERING
-	glBindVertexArray(impl_->dummy_vao_);
-	glDrawArrays(GL_TRIANGLES, 0, 3);
-	glBindVertexArray(0u);
+    glBindVertexArray(impl_->dummy_vao_);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+    glBindVertexArray(0u);
 #else
     // GEOMETRY RENDERING EXPERIMENTS
     glBindVertexArray(impl_->vao_);
@@ -407,14 +407,14 @@ RenderContext::RenderFrame()
     glBindVertexArray(0u);
 #endif
 
-	glUseProgram(0u);
+    glUseProgram(0u);
 
 #ifdef SR_SINGLE_BUFFERING
-	glFlush();
+    glFlush();
 #endif
 
-	start_over = start_over && (glGetError() == GL_NO_ERROR);
-	return start_over;
+    start_over = start_over && (glGetError() == GL_NO_ERROR);
+    return start_over;
 }
 
 void
@@ -430,9 +430,9 @@ RenderContext::WatchKernelFile(ShaderStage _stage, char const *_path)
 void
 RenderContext::SetResolution(int _width, int _height)
 {
-	impl_->resolution_ = { boost::numeric_cast<float>(_width),
-						   boost::numeric_cast<float>(_height) };
-	glViewport(0, 0, _width, _height);
+    impl_->resolution_ = { boost::numeric_cast<float>(_width),
+                           boost::numeric_cast<float>(_height) };
+    glViewport(0, 0, _width, _height);
 }
 
 
