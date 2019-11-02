@@ -56,6 +56,7 @@
  */
 
 // GEOMETRY RENDERING EXPERIMENTS
+#ifdef SR_GEOMETRY_RENDERING
 namespace {
 
 static oglbase::ShaderSources_t const& kProcessingVKernel()
@@ -138,6 +139,7 @@ static std::vector<float> const& kTempPointVector()
 }
 
 } // namespace
+#endif
 
 namespace sr {
 
@@ -167,14 +169,18 @@ public:
 	ShaderCache shader_cache_;
 	oglbase::ProgramPtr shader_program_;
 
+    UniformContainer uniforms_;
+
 public:
 	oglbase::VAOPtr dummy_vao_;
 
     // GEOMETRY RENDERING EXPERIMENTS
+#ifdef SR_GEOMETRY_RENDERING
 public:
     int point_count_;
     oglbase::VAOPtr vao_;
     oglbase::BufferPtr vertex_buffer_;
+#endif
 };
 
 RenderContext::Impl_::Impl_() :
@@ -193,11 +199,14 @@ RenderContext::Impl_::Impl_() :
 	active_stages_{ ShaderStage::kVertex, ShaderStage::kFragment },
 	shader_cache_{},
 	shader_program_{ 0u },
-	dummy_vao_{ 0u },
+    uniforms_{},
+	dummy_vao_{ 0u }
 
-    point_count_{ 0 },
+#ifdef SR_GEOMETRY_RENDERING
+    ,point_count_{ 0 },
     vao_{ 0u },
     vertex_buffer_{ 0u }
+#endif
 {
 	{
 		glGenVertexArrays(1, dummy_vao_.get());
@@ -373,17 +382,19 @@ RenderContext::RenderFrame()
 	{
 		int const time_loc = glGetUniformLocation(impl_->shader_program_, SR_SL_TIME_UNIFORM);
 		if (time_loc >= 0)
-		{
 			glUniform1f(time_loc, elapsed_time);
-		}
-	}
-	{
+
 		int const resolution_loc = glGetUniformLocation(impl_->shader_program_, SR_SL_RESOLUTION_UNIFORM);
 		if (resolution_loc >= 0)
-		{
 			glUniform2fv(resolution_loc, 1, &(impl_->resolution_[0]));
-		}
 	}
+
+    for (std::pair<std::string, float> const& uniform : impl_->uniforms_)
+    {
+        int const location = glGetUniformLocation(impl_->shader_program_, uniform.first.c_str());
+        if (location >= 0)
+            glUniform1f(location, uniform.second);
+    }
 
 #ifndef SR_GEOMETRY_RENDERING
 	glBindVertexArray(impl_->dummy_vao_);
@@ -424,6 +435,18 @@ RenderContext::SetResolution(int _width, int _height)
 	glViewport(0, 0, _width, _height);
 }
 
+
+void
+RenderContext::SetUniforms(UniformContainer &&_uniforms)
+{
+    std::swap(impl_->uniforms_, _uniforms);
+}
+
+UniformContainer const&
+RenderContext::GetUniforms() const
+{
+    return impl_->uniforms_;
+}
 
 std::string const &
 RenderContext::GetKernelPath(ShaderStage _stage) const

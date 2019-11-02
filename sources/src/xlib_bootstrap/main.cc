@@ -300,11 +300,7 @@ int main(int __argc, char* __argv[])
             case ButtonRelease:
             {
                 layer_mediator->MouseDown(xevent.type == ButtonPress);
-
-                XButtonEvent const& xbevent = xevent.xbutton;
-                std::cout << "ButtonEvent " << std::hex
-                          << xbevent.state << " "
-                          << (xevent.type == ButtonPress) << std::endl;
+                //XButtonEvent const& xbevent = xevent.xbutton;
             } break;
 
             case KeyPress:

@@ -12,10 +12,14 @@
 #define __YS_SHADERUNNER_HPP__
 
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "shaderunner/shader_cache.h"
 
 namespace sr {
+
+using UniformContainer = std::vector<std::pair<std::string, float>>;
 
 class RenderContext
 {
@@ -26,8 +30,12 @@ public:
 	bool RenderFrame();
 	void WatchKernelFile(ShaderStage _stage, char const *_path);
 	void SetResolution(int _width, int _height);
-public:
+
+    void SetUniforms(UniformContainer &&_uniforms);
+
+    UniformContainer const &GetUniforms() const;
 	std::string const &GetKernelPath(ShaderStage _stage) const;
+
 private:
 	struct Impl_;
 	Impl_* impl_;
