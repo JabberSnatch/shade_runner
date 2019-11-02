@@ -10,7 +10,6 @@
 #include "oglbase/shader.h"
 
 #include <algorithm>
-#include <iostream>
 
 #include <boost/numeric/conversion/cast.hpp>
 
@@ -19,7 +18,7 @@
 namespace oglbase {
 
 ShaderPtr
-CompileShader(GLenum _type, ShaderSources_t const&_sources)
+CompileShader(GLenum _type, ShaderSources_t const&_sources, std::string *o_log)
 {
 	GLsizei const source_count = boost::numeric_cast<GLsizei>(_sources.size());
 	ShaderPtr result{ glCreateShader(_type) };
@@ -27,15 +26,16 @@ CompileShader(GLenum _type, ShaderSources_t const&_sources)
 	glCompileShader(result);
 	if (GetShaderStatus<ShaderInfoFuncs, GL_COMPILE_STATUS>(result))
 	{
-#ifdef SR_GL_DEBUG_CONTEXT
-		ForwardShaderLog<ShaderInfoFuncs>(result);
-#else
-		std::cout << GetShaderLog<ShaderInfoFuncs>(result) << std::endl;
-#endif
+        std::string log = GetShaderLog<ShaderInfoFuncs>(result);
+        InsertDebugMessage(log);
+        if (o_log)
+            std::swap(log, *o_log);
 		result.reset(0u);
 	}
 	return result;
 }
+
+
 
 ProgramPtr
 LinkProgram(ShaderBinaries_t const &_binaries)
@@ -47,11 +47,8 @@ LinkProgram(ShaderBinaries_t const &_binaries)
 	glLinkProgram(result);
 	if (GetShaderStatus<ProgramInfoFuncs, GL_LINK_STATUS>(result))
 	{
-#ifdef SR_GL_DEBUG_CONTEXT
-		ForwardShaderLog<ProgramInfoFuncs>(result);
-#else
-		std::cout << GetShaderLog<ProgramInfoFuncs>(result) << std::endl;
-#endif
+        std::string log = GetShaderLog<ProgramInfoFuncs>(result);
+        InsertDebugMessage(log);
 		result.reset(0u);
 	}
 	return result;

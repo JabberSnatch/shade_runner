@@ -37,8 +37,7 @@ bool GetShaderStatus(GLuint const _handle);
 template <typename InfoFuncs>
 std::string GetShaderLog(GLuint const _handle);
 
-template <typename InfoFuncs>
-void ForwardShaderLog(GLuint const _handle);
+void InsertDebugMessage(std::string const&_msg);
 
 GLenum PrintError(std::ostream& _ostream);
 bool ClearError();

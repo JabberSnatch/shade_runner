@@ -17,9 +17,12 @@
 
 #include "shaderunner/shader_cache.h"
 
+#include "utility/callback.h"
+
 namespace sr {
 
 using UniformContainer = std::vector<std::pair<std::string, float>>;
+using ErrorLogContainer = std::vector<std::pair<int, std::string>>;
 
 class RenderContext
 {
@@ -36,11 +39,11 @@ public:
     UniformContainer const &GetUniforms() const;
 	std::string const &GetKernelPath(ShaderStage _stage) const;
 
+    utility::Callback<std::string const&, ErrorLogContainer const&> onCompileFailed_callback;
+
 private:
 	struct Impl_;
 	Impl_* impl_;
-
-	float time = 0.f;
 };
 
 } // namespace sr

@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cassert>
 #include <chrono>
+#include <cstring>
 #include <iostream>
 #include <iterator>
 #include <set>
@@ -149,41 +150,39 @@ using Resolution_t = std::array<float, 2>;
 
 struct RenderContext::Impl_
 {
-public:
-    Impl_();
+    static std::pair<oglbase::ShaderPtr, ErrorLogContainer>
+    CompileKernel(ShaderStage _stage, oglbase::ShaderSources_t const &_kernel_sources);
 
-public:
+    Impl_(RenderContext &_context);
+
+    RenderContext &context_;
+
     utility::Clock exec_time_;
 
-public:
     static constexpr float kKernelsUpdatePeriod = 1.f;
     void KernelsUpdate();
     std::unordered_map<ShaderStage, utility::File> kernel_files_;
 
-public:
     Resolution_t resolution_;
 
-public:
-    static oglbase::ShaderPtr CompileKernel(ShaderStage _stage, oglbase::ShaderSources_t const &_kernel_sources);
     std::set<ShaderStage> active_stages_;
     ShaderCache shader_cache_;
     oglbase::ProgramPtr shader_program_;
 
     UniformContainer uniforms_;
 
-public:
     oglbase::VAOPtr dummy_vao_;
 
     // GEOMETRY RENDERING EXPERIMENTS
 #ifdef SR_GEOMETRY_RENDERING
-public:
     int point_count_;
     oglbase::VAOPtr vao_;
     oglbase::BufferPtr vertex_buffer_;
 #endif
 };
 
-RenderContext::Impl_::Impl_() :
+RenderContext::Impl_::Impl_(RenderContext &_context) :
+    context_{ _context },
     exec_time_{ [this](float const _dt) {
         static auto kernels_timeout = [this, update_counter = 0.f](float _dt) mutable {
             update_counter += _dt;
@@ -215,7 +214,7 @@ RenderContext::Impl_::Impl_() :
     {
         for (ShaderStage stage : active_stages_)
         {
-            shader_cache_[stage] = CompileKernel(stage, DefaultKernel(stage));
+            shader_cache_[stage] = CompileKernel(stage, DefaultKernel(stage)).first;
             assert(shader_cache_[stage]);
         }
 
@@ -245,8 +244,8 @@ RenderContext::Impl_::Impl_() :
 
         glBindBuffer(GL_ARRAY_BUFFER, 0u);
 
-        shader_cache_[ShaderStage::kVertex] = CompileKernel(ShaderStage::kVertex, kProcessingVKernel());
-        shader_cache_[ShaderStage::kGeometry] = CompileKernel(ShaderStage::kGeometry, kProcessingGKernel());
+        shader_cache_[ShaderStage::kVertex] = CompileKernel(ShaderStage::kVertex, kProcessingVKernel()).first;
+        shader_cache_[ShaderStage::kGeometry] = CompileKernel(ShaderStage::kGeometry, kProcessingGKernel()).first;
         active_stages_ = std::set<ShaderStage>{ ShaderStage::kVertex,
                                                 ShaderStage::kGeometry,
                                                 ShaderStage::kFragment };
@@ -264,19 +263,21 @@ RenderContext::Impl_::KernelsUpdate()
     UpdatedShadersLUT updated_shaders;
 
     bool link_required = std::any_of(std::begin(kernel_files_), std::end(kernel_files_),
-                                     [&updated_shaders](KernelFile &_kernel_file) {
+                                     [this, &updated_shaders](KernelFile &_kernel_file) {
         bool const kernel_file_available = _kernel_file.second.Exists();
         if (kernel_file_available && _kernel_file.second.HasChanged())
         {
             std::cout << "Kernel file changed, building.." << std::endl;
-            oglbase::ShaderPtr compiled_shader = CompileKernel(_kernel_file.first, { _kernel_file.second.ReadAll().c_str() });
-            if (!compiled_shader)
+            std::pair<oglbase::ShaderPtr, ErrorLogContainer> comp_result =
+                CompileKernel(_kernel_file.first, { _kernel_file.second.ReadAll().c_str() });
+            context_.onCompileFailed_callback(_kernel_file.second.path(), comp_result.second);
+            if (!comp_result.first)
             {
                 std::cout << "Shader compilation failed" << std::endl;
                 return false;
             }
 
-            updated_shaders[_kernel_file.first] = std::move(compiled_shader);
+            updated_shaders[_kernel_file.first] = std::move(comp_result.first);
             return true;
         }
         else if (!kernel_file_available)
@@ -327,7 +328,7 @@ RenderContext::Impl_::KernelsUpdate()
 }
 
 
-oglbase::ShaderPtr
+std::pair<oglbase::ShaderPtr, ErrorLogContainer>
 RenderContext::Impl_::CompileKernel(ShaderStage _stage, oglbase::ShaderSources_t const &_kernel_sources)
 {
     static oglbase::ShaderSources_t const kKernelPrefix{
@@ -343,14 +344,44 @@ RenderContext::Impl_::CompileKernel(ShaderStage _stage, oglbase::ShaderSources_t
     std::copy(_kernel_sources.cbegin(), _kernel_sources.cend(), std::back_inserter(shader_sources));
     std::copy(kernel_suffix.cbegin(), kernel_suffix.cend(), std::back_inserter(shader_sources));
 
-    return oglbase::CompileShader(ShaderStageToGLenum(_stage), shader_sources);
+
+    std::string error_msg;
+    ErrorLogContainer errorlog;
+    oglbase::ShaderPtr shader = oglbase::CompileShader(ShaderStageToGLenum(_stage), shader_sources, &error_msg);
+    if (!shader)
+    {
+        while (!error_msg.empty())
+        {
+            std::string head = [](std::string &_in){
+                std::size_t index = _in.find('\n');
+                std::string head = _in.substr(0, index);
+                _in = _in.substr(index+1);
+                return head;
+            }(error_msg);
+
+            int line_index = 0;
+            std::string message;
+            {
+                std::size_t const linenum_begin = head.find(':') + 1;
+                std::size_t const linenum_end = head.find(':', linenum_begin) + 1;
+                std::size_t const paren_begin = head.find('(', linenum_begin);
+                std::size_t const message_begin = head.find(':', linenum_end);
+
+                message = head.substr(message_begin+2);
+                line_index = std::stoi(head.substr(linenum_begin, paren_begin-linenum_begin));
+            }
+
+            errorlog.emplace_back(std::make_pair(line_index-3, message));
+        }
+    }
+    return std::make_pair(std::move(shader), std::move(errorlog));
 }
 
 
 // =============================================================================
 
 RenderContext::RenderContext() :
-    impl_(new RenderContext::Impl_())
+    impl_(new RenderContext::Impl_(*this))
 {}
 
 RenderContext::~RenderContext()

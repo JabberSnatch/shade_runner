@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.11 FATAL_ERROR)
 project(shaderunner)
 
 option(WARN_VERBOSE "Enable highest warning level and disable warnings as errors" OFF)
+option(GL_DEBUG_CONTEXT "Create OpenGL debug context" OFF)
 
 set(SOURCE_DIR sources/src)
 set(LIB_DIR lib)
@@ -70,6 +71,10 @@ function(_COMMON_PROJECT_OPTIONS TARGET_NAME)
 			Boost::boost
 			Boost::filesystem
 	)
+
+	if(${GL_DEBUG_CONTEXT})
+	  add_compile_definitions(SR_GL_DEBUG_CONTEXT)
+	endif()
 
 	if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 	  add_compile_options(-std:c++latest)

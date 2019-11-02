@@ -14,6 +14,7 @@
 #include "oglbase/framebuffer.h"
 #include "shaderunner/shaderunner.h"
 #include "uibase/gizmo_layer.h"
+#include "utility/file.h"
 
 namespace {
 
@@ -24,6 +25,31 @@ std::unique_ptr<oglbase::Framebuffer> MakeGizmoLayerFramebuffer(appbase::Vec2i_t
 uibase::Matrix_t MakeGizmoLayerProjection(appbase::Vec2i_t const& _screen_size);
 
 void ImGui_Config(appbase::LayerMediator &_lm);
+
+static std::string error_console_buffer;
+void onCompileFailed(std::string const&_path, sr::ErrorLogContainer const&_errorlog)
+{
+    error_console_buffer = "";
+    utility::File kernel_file(_path);
+
+    std::string work_data = kernel_file.ReadAll();
+    auto it = _errorlog.begin();
+    for (int i = 1; it != _errorlog.end(); ++i)
+    {
+        while (it->first == i)
+        {
+            std::size_t index = work_data.find('\n');
+            std::string line = work_data.substr(0, index);
+            index = line.find_first_not_of("\t ");
+            line = line.substr(index);
+            error_console_buffer += std::to_string(it->first) + " " + line + "\n" + it->second + "\n";
+            ++it;
+        }
+
+        std::size_t index = work_data.find('\n');
+        work_data = work_data.substr(index+1);
+    }
+};
 
 } // namespace
 
@@ -39,6 +65,8 @@ LayerMediator::LayerMediator(Vec2i_t const& _screen_size, unsigned _flags)
     {
         sr_layer_ = std::make_unique<sr::RenderContext>();
         sr_layer_->SetResolution(state_.screen_size[0], state_.screen_size[1]);
+
+        sr_layer_->onCompileFailed_callback.listeners_.emplace_back(&onCompileFailed);
     }
     if (_flags & LayerFlag::kGizmo)
     {
@@ -361,6 +389,9 @@ void ImGui_Config(appbase::LayerMediator &_lm)
 
                 _lm.sr_layer_->SetUniforms(std::move(uniforms));
             }
+
+            if (ImGui::CollapsingHeader("Compile Errors"))
+                ImGui::TextWrapped(error_console_buffer.c_str(), 0);
 
             if (ImGui::CollapsingHeader("Debug"))
             {

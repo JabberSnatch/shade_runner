@@ -12,6 +12,7 @@
 #define __YS_OGL_SHADER_HPP__
 
 #include <vector>
+#include <string>
 
 #include <GL/glew.h>
 
@@ -23,7 +24,8 @@ namespace oglbase {
 using ShaderSources_t = std::vector<char const *>;
 using ShaderBinaries_t = std::vector<GLuint>;
 
-ShaderPtr CompileShader(GLenum _type, ShaderSources_t const&_sources);
+ShaderPtr CompileShader(GLenum _type, ShaderSources_t const&_sources, std::string *o_log = nullptr);
+
 ProgramPtr LinkProgram(ShaderBinaries_t const &_binaries);
 
 } // namespace oglbase

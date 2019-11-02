@@ -110,20 +110,18 @@ std::string GetShaderLog(GLuint const _handle)
 	return result;
 }
 
-template <typename InfoFuncs>
 void
-ForwardShaderLog(GLuint const _handle)
+InsertDebugMessage(std::string const&_msg)
 {
-	std::string const log_string = GetShaderLog<InfoFuncs>(_handle);
 	GLint max_debug_message_length;
 	glGetIntegerv(GL_MAX_DEBUG_MESSAGE_LENGTH, &max_debug_message_length);
-	GLint const log_length = std::min(static_cast<GLint>(log_string.size()), max_debug_message_length-1);
+	GLint const log_length = std::min(static_cast<GLint>(_msg.size()), max_debug_message_length-1);
 	glDebugMessageInsert(GL_DEBUG_SOURCE_APPLICATION,
 						 GL_DEBUG_TYPE_ERROR,
 						 0u,
 						 GL_DEBUG_SEVERITY_LOW,
 						 log_length,
-						 log_string.c_str());
+						 _msg.c_str());
 }
 
 template
@@ -135,11 +133,6 @@ template
 std::string GetShaderLog<ShaderInfoFuncs>(GLuint const _handle);
 template
 std::string GetShaderLog<ProgramInfoFuncs>(GLuint const _handle);
-
-template
-void ForwardShaderLog<ShaderInfoFuncs>(GLuint const);
-template
-void ForwardShaderLog<ProgramInfoFuncs>(GLuint const);
 
 
 GLenum PrintError(std::ostream& _ostream)

@@ -22,6 +22,7 @@
 #include <GL/gl.h>
 #include <GL/glx.h>
 
+#include "oglbase/error.h"
 #include "appbase/layer_mediator.h"
 
 using proc_glXCreateContextAttribsARB =
@@ -48,6 +49,9 @@ static const int kVisualAttributes[] = {
 static const int kGLContextAttributes[] = {
     GLX_CONTEXT_MAJOR_VERSION_ARB, 4,
     GLX_CONTEXT_MINOR_VERSION_ARB, 5,
+#ifdef SR_GL_DEBUG_CONTEXT
+    GLX_CONTEXT_FLAGS_ARB, GLX_CONTEXT_DEBUG_BIT_ARB,
+#endif
     None
 };
 
@@ -237,6 +241,10 @@ int main(int __argc, char* __argv[])
 			std::cout << "debug, ";
 		std::cout << std::endl;
 	}
+
+#ifdef SR_GL_DEBUG_CONTEXT
+    oglbase::DebugMessageControl<> debugMessageControl{};
+#endif
 
     layer_mediator = std::make_unique<appbase::LayerMediator>(
         appbase::Vec2i_t{ boot_width, boot_height },
