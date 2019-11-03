@@ -327,13 +327,13 @@ int main(int __argc, char* __argv[])
                     km |= (mod_mask & ShiftMask) ? appbase::fKeyMod::kShift : 0u;
                     km |= (mod_mask & Mod1Mask) ? appbase::fKeyMod::kAlt : 0u;
 
-                    KeySym ks = XLookupKeysym(&xkevent, xkevent.state);
-                    if (ks == NoSymbol)
-                        ks = XLookupKeysym(&xkevent, xkevent.state & ShiftMask);
-                    if (ks == NoSymbol)
-                        ks = XLookupKeysym(&xkevent, 0);
-
-                    layer_mediator->KeyDown((std::uint32_t)ks, km, (xevent.type == KeyPress));
+                    char kc = '\0';
+                    KeySym ks;
+                    XLookupString(&xkevent, &kc, 1, &ks, nullptr);
+                    if ((unsigned)ks & 0xff00 == 0xff00)
+                        layer_mediator->KeyDown((std::uint32_t)ks, km, (xevent.type == KeyPress));
+                    else
+                        layer_mediator->KeyDown((std::uint32_t)kc, km, (xevent.type == KeyPress));
                 }
             } break;
 
