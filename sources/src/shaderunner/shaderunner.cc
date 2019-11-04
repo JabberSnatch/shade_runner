@@ -270,7 +270,7 @@ RenderContext::Impl_::KernelsUpdate()
             std::cout << "Kernel file changed, building.." << std::endl;
             std::pair<oglbase::ShaderPtr, ErrorLogContainer> comp_result =
                 CompileKernel(_kernel_file.first, { _kernel_file.second.ReadAll().c_str() });
-            context_.onCompileFailed_callback(_kernel_file.second.path(), comp_result.second);
+            context_.onFKernelCompileFinished(_kernel_file.second.path(), comp_result.second);
             if (!comp_result.first)
             {
                 std::cout << "Shader compilation failed" << std::endl;
@@ -468,9 +468,9 @@ RenderContext::SetResolution(int _width, int _height)
 
 
 void
-RenderContext::SetUniforms(UniformContainer &&_uniforms)
+RenderContext::SetUniforms(UniformContainer const&_uniforms)
 {
-    std::swap(impl_->uniforms_, _uniforms);
+    impl_->uniforms_ = _uniforms;
 }
 
 UniformContainer const&

@@ -47,6 +47,7 @@ set( SHADERUNNER_SOURCES
 set(APPBASE_DIR ${SOURCE_DIR}/appbase)
 set( APPBASE_SOURCES
      ${APPBASE_DIR}/layer_mediator.cc
+	 ${APPBASE_DIR}/imgui_layer.cc
 	 )
 
 set(WIN32_BOOTSTRAP_DIR ${SOURCE_DIR}/win32_bootstrap)

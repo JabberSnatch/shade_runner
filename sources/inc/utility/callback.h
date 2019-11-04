@@ -12,18 +12,28 @@
 #define __YS_CALLBACK_HPP__
 
 #include <functional>
+#include <stdexcept>
 #include <vector>
 
 namespace utility {
 
 template <typename ... Args>
-class Callback
+struct Callback
 {
-public:
     void operator()(Args ... args) {
         for (auto &&cb : listeners_) cb(args...);
     }
     std::vector<std::function<void(Args...)>> listeners_;
+};
+
+template <typename Return>
+struct Query
+{
+    Return operator()(){
+        if (source_) return source_();
+        throw std::logic_error("Query called without any source bound");
+    }
+    std::function<Return()> source_;
 };
 
 } // namespace utility

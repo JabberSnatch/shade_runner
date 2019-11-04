@@ -24,33 +24,6 @@ static uibase::Vec3_t const kGizmoColorOn{ 1.f, 0.f, 0.f };
 std::unique_ptr<oglbase::Framebuffer> MakeGizmoLayerFramebuffer(appbase::Vec2i_t const& _screen_size);
 uibase::Matrix_t MakeGizmoLayerProjection(appbase::Vec2i_t const& _screen_size);
 
-void ImGui_Config(appbase::LayerMediator &_lm);
-
-static std::string error_console_buffer;
-void onCompileFailed(std::string const&_path, sr::ErrorLogContainer const&_errorlog)
-{
-    error_console_buffer = "";
-    utility::File kernel_file(_path);
-
-    std::string work_data = kernel_file.ReadAll();
-    auto it = _errorlog.begin();
-    for (int i = 1; it != _errorlog.end(); ++i)
-    {
-        while (it->first == i)
-        {
-            std::size_t index = work_data.find('\n');
-            std::string line = work_data.substr(0, index);
-            index = line.find_first_not_of("\t ");
-            line = line.substr(index);
-            error_console_buffer += std::to_string(it->first) + " " + line + "\n" + it->second + "\n";
-            ++it;
-        }
-
-        std::size_t index = work_data.find('\n');
-        work_data = work_data.substr(index+1);
-    }
-};
-
 } // namespace
 
 namespace appbase {
@@ -65,8 +38,6 @@ LayerMediator::LayerMediator(Vec2i_t const& _screen_size, unsigned _flags)
     {
         sr_layer_ = std::make_unique<sr::RenderContext>();
         sr_layer_->SetResolution(state_.screen_size[0], state_.screen_size[1]);
-
-        sr_layer_->onCompileFailed_callback.listeners_.emplace_back(&onCompileFailed);
     }
     if (_flags & LayerFlag::kGizmo)
     {
@@ -81,34 +52,36 @@ LayerMediator::LayerMediator(Vec2i_t const& _screen_size, unsigned _flags)
     }
     if (_flags & LayerFlag::kImgui)
     {
-        imgui_layer_ = std::make_unique<uibase::ImGuiContext>();
-        imgui_layer_->SetResolution(state_.screen_size[0], state_.screen_size[1]);
+        imgui_layer_ = std::make_unique<appbase::ImGuiLayer>();
+        imgui_layer_->imgui_context_.SetResolution(state_.screen_size[0], state_.screen_size[1]);
+    }
 
-        ImGuiIO &io = ImGui::GetIO();
+    if (sr_layer_ && imgui_layer_)
+    {
+        sr_layer_->onFKernelCompileFinished.listeners_.emplace_back(
+            [this] (std::string const&_path, sr::ErrorLogContainer const&_errorlog) {
+                this->imgui_layer_->onFKernelCompileFinished(_path, _errorlog);
+            });
 
-        io.KeyMap[ImGuiKey_Tab] = eKey::kTab;
-        io.KeyMap[ImGuiKey_LeftArrow] = eKey::kLeft;
-        io.KeyMap[ImGuiKey_RightArrow] = eKey::kRight;
-        io.KeyMap[ImGuiKey_UpArrow] = eKey::kUp;
-        io.KeyMap[ImGuiKey_DownArrow] = eKey::kDown;
-        io.KeyMap[ImGuiKey_PageUp] = eKey::kPageUp;
-        io.KeyMap[ImGuiKey_PageDown] = eKey::kPageDown;
-        io.KeyMap[ImGuiKey_Home] = eKey::kHome;
-        io.KeyMap[ImGuiKey_End] = eKey::kEnd;
-        io.KeyMap[ImGuiKey_Insert] = eKey::kInsert;
-        io.KeyMap[ImGuiKey_Delete] = eKey::kDelete;
-        io.KeyMap[ImGuiKey_Backspace] = eKey::kBackspace;
-        io.KeyMap[ImGuiKey_Space] = ' ';
-        io.KeyMap[ImGuiKey_Enter] = eKey::kEnter;
-        io.KeyMap[ImGuiKey_Escape] = eKey::kEscape;
-        io.KeyMap[ImGuiKey_A] = 'a';
-        io.KeyMap[ImGuiKey_C] = 'c';
-        io.KeyMap[ImGuiKey_V] = 'v';
-        io.KeyMap[ImGuiKey_X] = 'x';
-        io.KeyMap[ImGuiKey_Y] = 'y';
-        io.KeyMap[ImGuiKey_Z] = 'z';
+        imgui_layer_->FKernelPath_query.source_ =
+            [this] () {
+                return this->sr_layer_->GetKernelPath(sr::ShaderStage::kFragment);
+            };
 
-        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+        imgui_layer_->FKernelPath_onReturn.listeners_.emplace_back(
+            [this] (std::string const&_path) {
+                this->sr_layer_->WatchKernelFile(sr::ShaderStage::kFragment, _path.c_str());
+            });
+
+        imgui_layer_->Uniforms_query.source_ =
+            [this] () {
+                return this->sr_layer_->GetUniforms();
+            };
+
+        imgui_layer_->Uniforms_onReturn.listeners_.emplace_back(
+            [this] (sr::UniformContainer const&_uniforms) {
+                this->sr_layer_->SetUniforms(_uniforms);
+            });
     }
 }
 
@@ -139,7 +112,7 @@ LayerMediator::ResizeEvent(Vec2i_t const& _size)
 
     if (imgui_layer_)
     {
-        imgui_layer_->SetResolution(state_.screen_size[0], state_.screen_size[1]);
+        imgui_layer_->imgui_context_.SetResolution(state_.screen_size[0], state_.screen_size[1]);
     }
 }
 
@@ -221,9 +194,7 @@ LayerMediator::RunFrame()
     bool result = false;
 
     if (gizmo_layer_)
-    {
         framebuffer_->Bind();
-    }
 
     if (sr_layer_)
         result = sr_layer_->RenderFrame();
@@ -243,30 +214,7 @@ LayerMediator::RunFrame()
     }
 
     if (imgui_layer_)
-    {
-        ImGuiIO &io = ImGui::GetIO();
-
-        io.KeyCtrl = state_.mod_down & fKeyMod::kCtrl;
-        io.KeyShift = state_.mod_down & fKeyMod::kShift;
-        io.KeyAlt = state_.mod_down & fKeyMod::kAlt;
-        io.KeySuper = false;
-
-        io.MouseDown[0] = state_.mouse_down;
-        io.MousePos = ImVec2(static_cast<float>(state_.mouse_pos[0]),
-                             static_cast<float>(state_.screen_size[1] - state_.mouse_pos[1]));
-
-        {
-            ImGuiStyle &style = ImGui::GetStyle();
-            style.FrameRounding = 0.f;
-            style.WindowRounding = 1.f;
-            style.ScrollbarRounding = 0.f;
-            style.GrabRounding = 2.f;
-        }
-
-        ImGui_Config(*this);
-
-        imgui_layer_->Render();
-    }
+        imgui_layer_->RunFrame(state_);
 
     return result;
 }
@@ -295,118 +243,5 @@ MakeGizmoLayerProjection(appbase::Vec2i_t const& _screen_size)
     return uibase::perspective(0.01f, 1000.f, 3.1415926534f*0.5f, aspect_ratio);
 }
 
-void ImGui_Config(appbase::LayerMediator &_lm)
-{
-    constexpr int kTextBufferSize = 512;
-
-    static bool show_demo_window = true;
-    static bool show_main_window = true;
-
-    static char fkernel_path_buffer[kTextBufferSize] = "";
-    static char stub1[kTextBufferSize] = "";
-
-    constexpr std::size_t kUniformMaxLength = 32;
-
-    ImGui::NewFrame();
-
-    if (ImGui::BeginMainMenuBar())
-    {
-        if (ImGui::BeginMenu("Windows"))
-        {
-            ImGui::MenuItem("Demo", nullptr, &show_demo_window);
-            ImGui::MenuItem("Main", nullptr, &show_main_window);
-            ImGui::EndMenu();
-        }
-        ImGui::EndMainMenuBar();
-    }
-
-    if (show_demo_window)
-        ImGui::ShowDemoWindow(&show_demo_window);
-
-    if (show_main_window)
-    {
-        ImGui::SetNextWindowPos(ImVec2(350, 20), ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(ImVec2(550, 680), ImGuiCond_FirstUseEver);
-
-        if (ImGui::Begin("Main Window", &show_main_window, 0))
-        {
-            {
-                std::string const &fkernel_path = _lm.sr_layer_->GetKernelPath(sr::ShaderStage::kFragment);
-                assert(fkernel_path.size() <= kTextBufferSize);
-                std::copy(fkernel_path.cbegin(), fkernel_path.cend(), &fkernel_path_buffer[0]);
-
-                ImGui::PushItemWidth(-1);
-                bool const state = ImGui::InputText("IT_fkernel_path",
-                                                    fkernel_path_buffer,
-                                                    kTextBufferSize,
-                                                    ImGuiInputTextFlags_EnterReturnsTrue);
-                ImGui::PopItemWidth();
-
-                if (state)
-                    _lm.sr_layer_->WatchKernelFile(sr::ShaderStage::kFragment, fkernel_path_buffer);
-            }
-
-            if (ImGui::CollapsingHeader("Uniforms"))
-            {
-                sr::UniformContainer uniforms = _lm.sr_layer_->GetUniforms();
-                if (ImGui::Button("+"))
-                {
-                    uniforms.emplace_back(std::pair<std::string, float>{"", 0.f});
-                } ImGui::SameLine();
-
-                if (ImGui::Button("-"))
-                    ;
-
-                { ImGui::PushItemWidth(-100);
-                    std::array<char, kUniformMaxLength> buff;
-
-                    for (std::size_t i = 0; i < uniforms.size(); ++i)
-                    {
-                        std::pair<std::string, float> &uniform = uniforms[i];
-
-                        std::copy(uniform.first.c_str(),
-                                  uniform.first.c_str() + std::min(kUniformMaxLength, uniform.first.size()),
-                                  std::begin(buff));
-
-                        std::fill(std::begin(buff) + std::min(kUniformMaxLength, uniform.first.size()),
-                                  std::end(buff),
-                                  '\0');
-
-                        ImGui::DragFloat(
-                            (std::string("DF_uniform") + std::to_string(i)).c_str(),
-                            &uniform.second);
-
-                        if (ImGui::InputText(
-                                (std::string("IT_uniform") + std::to_string(i)).c_str(),
-                                buff.data(),
-                                kUniformMaxLength,
-                                ImGuiInputTextFlags_EnterReturnsTrue))
-                        {
-                            uniform.first = std::string(buff.data(), kUniformMaxLength);
-                        }
-                    }
-                } ImGui::PopItemWidth();
-
-                _lm.sr_layer_->SetUniforms(std::move(uniforms));
-            }
-
-            if (ImGui::CollapsingHeader("Compile Errors"))
-                ImGui::TextWrapped(error_console_buffer.c_str(), 0);
-
-            if (ImGui::CollapsingHeader("Debug"))
-            {
-                for (int i = 0; i < 256; ++i)
-                {
-                    ImGui::Checkbox((std::string("key") + std::to_string(i)).c_str(), &_lm.state_.key_down[i]);
-                    if (i % 16 != 0) ImGui::SameLine();
-                }
-            }
-        }
-        ImGui::End();
-    }
-
-    ImGui::EndFrame();
-    ImGui::Render();
-}
 
 } // namespace

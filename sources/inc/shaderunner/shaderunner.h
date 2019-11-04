@@ -34,12 +34,12 @@ public:
 	void WatchKernelFile(ShaderStage _stage, char const *_path);
 	void SetResolution(int _width, int _height);
 
-    void SetUniforms(UniformContainer &&_uniforms);
+    void SetUniforms(UniformContainer const&_uniforms);
 
     UniformContainer const &GetUniforms() const;
 	std::string const &GetKernelPath(ShaderStage _stage) const;
 
-    utility::Callback<std::string const&, ErrorLogContainer const&> onCompileFailed_callback;
+    utility::Callback<std::string const&, ErrorLogContainer const&> onFKernelCompileFinished;
 
 private:
 	struct Impl_;
