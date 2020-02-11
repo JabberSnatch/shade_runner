@@ -80,7 +80,7 @@ ImGuiLayer::RunFrame(State const&_state)
         ImGui::EndMainMenuBar();
     }
 
-    if (show_demo_window)
+    if (false && show_demo_window)
         ImGui::ShowDemoWindow(&show_demo_window);
 
     if (show_main_window)

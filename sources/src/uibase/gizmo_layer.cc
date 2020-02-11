@@ -20,9 +20,14 @@ namespace {
 
 #define SHADER_VERSION "#version 330 core\n"
 
-static oglbase::ShaderSources_t const kGizmoGeom{
+static oglbase::ShaderSources_t const kBoxGeom{
     SHADER_VERSION,
     #include "./shaders/box.geom.h"
+};
+
+static oglbase::ShaderSources_t const kTransfoGeom{
+    SHADER_VERSION,
+    #include "./shaders/transfo.geom.h"
 };
 
 static oglbase::ShaderSources_t const kGizmoVert{
@@ -49,7 +54,7 @@ GizmoProgram::GizmoProgram() :
 
     std::array<oglbase::ShaderPtr, 3> const shaders{
         oglbase::CompileShader(GL_VERTEX_SHADER, kGizmoVert),
-        oglbase::CompileShader(GL_GEOMETRY_SHADER, kGizmoGeom),
+        oglbase::CompileShader(GL_GEOMETRY_SHADER, kTransfoGeom),
         oglbase::CompileShader(GL_FRAGMENT_SHADER, kGizmoFrag)
     };
     oglbase::ShaderBinaries_t const binaries{ shaders[0], shaders[1], shaders[2] };
@@ -75,7 +80,8 @@ GizmoProgram::Draw(GizmoDesc const &_desc, unsigned _id, Matrix_t const& _projec
 
     {
         int const color_loc = glGetUniformLocation(shader_program_, "uGizmoColor");
-        glUniform3fv(color_loc, 1, &_desc.color_[0]);
+        if (color_loc >= 0)
+            glUniform3fv(color_loc, 1, &_desc.color_[0]);
         int const id_loc = glGetUniformLocation(shader_program_, "uGizmoID");
         static_assert(sizeof(GLint) == sizeof(unsigned), "");
         glUniform1i(id_loc, *(GLint*)&_id);

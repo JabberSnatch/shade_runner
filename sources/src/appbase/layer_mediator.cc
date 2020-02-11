@@ -44,11 +44,21 @@ LayerMediator::LayerMediator(Vec2i_t const& _screen_size, unsigned _flags)
         framebuffer_ = MakeGizmoLayerFramebuffer(state_.screen_size);
         gizmo_layer_ = std::make_unique<uibase::GizmoLayer>(MakeGizmoLayerProjection(state_.screen_size));
 
+#if 0
         for (float i = 0.f; i < 10.f; i+=1.f)
             for (float j = 0.f; j < 10.f; j+=1.f)
                 for (float k = 0.f; k < 10.f; k+=1.f)
                     gizmo_layer_->gizmos_.push_back(
-                        uibase::GizmoDesc{ uibase::Vec3_t{ i - 5.f, j - 5.f, -k }, kGizmoColorOff });
+                        uibase::GizmoDesc{ uibase::eGizmoType::kBox,
+                                uibase::Vec3_t{ i - 5.f, j - 5.f, -k },
+                                kGizmoColorOff }
+                    );
+#endif
+        gizmo_layer_->gizmos_.push_back(
+            uibase::GizmoDesc{ uibase::eGizmoType::kTransform,
+                    uibase::Vec3_t{ 0.f, 0.f, -3.f },
+                    kGizmoColorOff }
+        );
     }
     if (_flags & LayerFlag::kImgui)
     {

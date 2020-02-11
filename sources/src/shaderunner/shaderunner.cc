@@ -57,6 +57,7 @@
  */
 
 // GEOMETRY RENDERING EXPERIMENTS
+//#define SR_GEOMETRY_RENDERING
 #ifdef SR_GEOMETRY_RENDERING
 namespace {
 
@@ -224,7 +225,6 @@ RenderContext::Impl_::Impl_(RenderContext &_context) :
         assert(shader_program_);
     }
 
-    //#define SR_GEOMETRY_RENDERING
 #ifdef SR_GEOMETRY_RENDERING
     // GEOMETRY RENDERING EXPERIMENTS
     {

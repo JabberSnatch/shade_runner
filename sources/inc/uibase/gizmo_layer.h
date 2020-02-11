@@ -35,11 +35,22 @@ constexpr Matrix_t perspective(float n, float f, float alpha, float how)
 }
 
 
+enum class eGizmoType;
+
 struct GizmoDesc
 {
+    eGizmoType type_;
     Vec3_t position_;
+
     Vec3_t color_;
 };
+
+enum class eGizmoType
+{
+    kBox,
+    kTransform,
+};
+
 
 struct GizmoProgram
 {

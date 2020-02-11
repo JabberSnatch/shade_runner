@@ -49,6 +49,7 @@ static const int kVisualAttributes[] = {
 static const int kGLContextAttributes[] = {
     GLX_CONTEXT_MAJOR_VERSION_ARB, 4,
     GLX_CONTEXT_MINOR_VERSION_ARB, 5,
+#define SR_GL_DEBUG_CONTEXT
 #ifdef SR_GL_DEBUG_CONTEXT
     GLX_CONTEXT_FLAGS_ARB, GLX_CONTEXT_DEBUG_BIT_ARB,
 #endif
@@ -249,7 +250,7 @@ int main(int __argc, char* __argv[])
     layer_mediator = std::make_unique<appbase::LayerMediator>(
         appbase::Vec2i_t{ boot_width, boot_height },
         appbase::LayerFlag::kShaderunner
-        // | appbase::LayerFlag::kGizmo
+        | appbase::LayerFlag::kGizmo
         | appbase::LayerFlag::kImgui
     );
 
