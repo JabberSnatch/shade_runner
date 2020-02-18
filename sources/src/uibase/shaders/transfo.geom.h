@@ -13,6 +13,7 @@ layout(points) in;
 layout(triangle_strip, max_vertices = 72) out;
 
 out vec3 gsVertColor;
+flat out uint gsSubGizmoIndex;
 
 uniform mat4 uProjectionMat;
 
@@ -20,7 +21,7 @@ void main()
 {
     vec4 in_position = gl_in[0].gl_Position;
 
-#define EMIT_LOCAL(position) gl_Position = uProjectionMat * (in_position + (position) * extent); gsVertColor = color; EmitVertex()
+#define EMIT_LOCAL(position) gl_Position = uProjectionMat * (in_position + (position) * extent); gsVertColor = color; gsSubGizmoIndex = index; EmitVertex()
 #define EMIT_CUBE(position)\
 	EMIT_LOCAL(position + vec4(-0.5, -0.5, -0.5, 0));\
 	EMIT_LOCAL(position + vec4(0.5, -0.5, -0.5, 0));\
@@ -40,14 +41,17 @@ void main()
 
     vec4 extent = vec4(1.0, 0.05, 0.05, 0.0);
     vec3 color = vec3(1.0, 0.0, 0.0);
+    uint index = 0u;
     EMIT_CUBE(vec4(0.475, 0.0, 0.0, 0.0));
 
     extent = vec4(0.05, 1.0, 0.05, 0.0);
     color = vec3(0.0, 1.0, 0.0);
+    index = 1u;
     EMIT_CUBE(vec4(0.0, 0.475, 0.0, 0.0));
 
     extent = vec4(0.05, 0.05, 1.0, 0.0);
     color = vec3(0.0, 0.0, 1.0);
+    index = 2u;
     EMIT_CUBE(vec4(0.0, 0.0, 0.475, 0.0));
 }
 

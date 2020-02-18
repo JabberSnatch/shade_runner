@@ -16,19 +16,21 @@
 #include "uibase/gizmo_layer.h"
 #include "utility/file.h"
 
+#include <iostream>
+
 namespace {
 
 static uibase::Vec3_t const kGizmoColorOff{ 0.f, 1.f, 0.f };
 static uibase::Vec3_t const kGizmoColorOn{ 1.f, 0.f, 0.f };
 
-std::unique_ptr<oglbase::Framebuffer> MakeGizmoLayerFramebuffer(appbase::Vec2i_t const& _screen_size);
-uibase::Matrix_t MakeGizmoLayerProjection(appbase::Vec2i_t const& _screen_size);
+std::unique_ptr<oglbase::Framebuffer> MakeGizmoLayerFramebuffer(uibase::Vec2i_t const& _screen_size);
+uibase::Matrix_t MakeGizmoLayerProjection(uibase::Vec2i_t const& _screen_size);
 
 } // namespace
 
 namespace appbase {
 
-LayerMediator::LayerMediator(Vec2i_t const& _screen_size, unsigned _flags)
+LayerMediator::LayerMediator(uibase::Vec2i_t const& _screen_size, unsigned _flags)
 {
     state_.screen_size = _screen_size;
     std::fill(std::begin(state_.key_down), std::end(state_.key_down), false);
@@ -54,6 +56,7 @@ LayerMediator::LayerMediator(Vec2i_t const& _screen_size, unsigned _flags)
                                 kGizmoColorOff }
                     );
 #endif
+
         gizmo_layer_->gizmos_.push_back(
             uibase::GizmoDesc{ uibase::eGizmoType::kTransform,
                     uibase::Vec3_t{ 0.f, 0.f, -3.f },
@@ -102,7 +105,7 @@ LayerMediator::SpecialKey(eKey _key, std::uint8_t _v)
 }
 
 void
-LayerMediator::ResizeEvent(Vec2i_t const& _size)
+LayerMediator::ResizeEvent(uibase::Vec2i_t const& _size)
 {
     if (_size[0] == state_.screen_size[0] && _size[1] == state_.screen_size[1])
         return;
@@ -134,20 +137,43 @@ LayerMediator::MouseDown(bool _v)
 
     state_.mouse_down = _v;
 
-    if (gizmo_layer_ && !_v)
+    if (_v) std::cout << "mouse down" << std::endl;
+    else std::cout << "mouse up" << std::endl;
+
+    if (gizmo_layer_)
     {
-        if (state_.active_gizmo)
-            gizmo_layer_->gizmos_[state_.active_gizmo-1].color_ = kGizmoColorOff;
-        state_.active_gizmo = 0;
+        if (state_.hover_gizmo)
+        {
+            const std::uint32_t gizmo_index = uibase::UnpackGizmoIndex(state_.hover_gizmo);
+            uibase::GizmoDesc& gizmo = gizmo_layer_->gizmos_[gizmo_index-1];
+
+            if (!_v)
+            {
+                if (gizmo.type_ == uibase::eGizmoType::kBox)
+                    gizmo.color_ = kGizmoColorOff;
+            }
+            else
+            {
+                if (gizmo.type_ == uibase::eGizmoType::kTransform)
+                    state_.select_gizmo = state_.hover_gizmo;
+            }
+        }
+    }
+
+    if (!_v)
+    {
+        state_.select_gizmo = 0u;
+        state_.hover_gizmo = 0u;
     }
 }
 
 void
-LayerMediator::MousePos(Vec2i_t const& _pos)
+LayerMediator::MousePos(uibase::Vec2i_t const& _pos)
 {
     if (state_.mouse_pos[0] == _pos[0] && state_.mouse_pos[1] == _pos[1])
         return;
 
+    const uibase::Vec2i_t delta = uibase::vec2i_sub(_pos, state_.mouse_pos);
     state_.mouse_pos = _pos;
 
     if (gizmo_layer_)
@@ -156,22 +182,76 @@ LayerMediator::MousePos(Vec2i_t const& _pos)
         // framebuffer_->ReadPixel() ?
         framebuffer_->Bind();
         glReadBuffer(GL_COLOR_ATTACHMENT1);
-        int gizmo_id = 0;
+        std::uint32_t gizmo_payload = 0;
         static_assert(sizeof(int) == sizeof(float), "");
         glReadPixels(state_.mouse_pos[0], state_.mouse_pos[1],
                      1, 1,
-                     GL_RED, GL_FLOAT, (GLfloat*)&gizmo_id);
+                     GL_RED, GL_FLOAT, (GLfloat*)&gizmo_payload);
         glReadBuffer(GL_NONE);
         framebuffer_->Unbind();
         // =====================================================================
 
-        if (gizmo_id != state_.active_gizmo)
+        if (gizmo_payload != state_.hover_gizmo)
         {
-            if (state_.active_gizmo)
-                gizmo_layer_->gizmos_[state_.active_gizmo-1].color_ = kGizmoColorOff;
-            state_.active_gizmo = gizmo_id;
-            if (state_.active_gizmo)
-                gizmo_layer_->gizmos_[state_.active_gizmo-1].color_ = kGizmoColorOn;
+            // =================================================================
+            // HOVER_OUT
+            if (state_.hover_gizmo)
+            {
+                uibase::GizmoDesc& gizmo = gizmo_layer_->GetGizmo(state_.hover_gizmo);
+                const std::uint32_t subgizmo_index = uibase::UnpackSubgizmoIndex(state_.hover_gizmo);
+
+                if (gizmo.type_ == uibase::eGizmoType::kBox)
+                    gizmo.color_ = kGizmoColorOff;
+
+                if (gizmo.type_ == uibase::eGizmoType::kTransform)
+                    std::cout << subgizmo_index << " off" << std::endl;
+            }
+
+            state_.hover_gizmo = gizmo_payload;
+
+            // =================================================================
+            // HOVER_IN
+            if (state_.hover_gizmo)
+            {
+                uibase::GizmoDesc& gizmo = gizmo_layer_->GetGizmo(state_.hover_gizmo);
+                const std::uint32_t subgizmo_index = uibase::UnpackSubgizmoIndex(state_.hover_gizmo);
+
+                if (gizmo.type_ == uibase::eGizmoType::kBox)
+                    gizmo.color_ = kGizmoColorOn;
+
+                if (gizmo.type_ == uibase::eGizmoType::kTransform)
+                {
+                    std::cout << subgizmo_index << " on" << std::endl;
+                }
+            }
+        }
+
+        if (state_.select_gizmo)
+        {
+            uibase::GizmoDesc& gizmo = gizmo_layer_->GetGizmo(state_.select_gizmo);
+
+            if (gizmo.type_ == uibase::eGizmoType::kTransform)
+            {
+                const std::uint32_t subgizmo_index = uibase::UnpackSubgizmoIndex(state_.select_gizmo);
+                std::cout << "move transfo" << std::endl;
+                std::cout << "delta " << delta[0] << " " << delta[1] << std::endl;
+
+                const uibase::Vec2_t deltaf = uibase::vec2_itof(delta);
+                if (subgizmo_index == 0u)
+                {
+                    std::cout << "x" << std::endl;
+                    gizmo.position_[0] += deltaf[0] * 0.01f;
+                }
+                if (subgizmo_index == 1u)
+                {
+                    std::cout << "y" << std::endl;
+                    gizmo.position_[1] += deltaf[1] * 0.01f;
+                }
+                if (subgizmo_index == 2u)
+                {
+                    std::cout << "z" << std::endl;
+                }
+            }
         }
     }
 }
@@ -234,7 +314,7 @@ LayerMediator::RunFrame()
 namespace {
 
 std::unique_ptr<oglbase::Framebuffer>
-MakeGizmoLayerFramebuffer(appbase::Vec2i_t const& _screen_size)
+MakeGizmoLayerFramebuffer(uibase::Vec2i_t const& _screen_size)
 {
     oglbase::Framebuffer::AttachmentDescs const fbo_attachments{
         { GL_COLOR_ATTACHMENT0, GL_RGBA8 },
@@ -247,7 +327,7 @@ MakeGizmoLayerFramebuffer(appbase::Vec2i_t const& _screen_size)
 }
 
 uibase::Matrix_t
-MakeGizmoLayerProjection(appbase::Vec2i_t const& _screen_size)
+MakeGizmoLayerProjection(uibase::Vec2i_t const& _screen_size)
 {
     float aspect_ratio = static_cast<float>(_screen_size[1]) / static_cast<float>(_screen_size[0]);
     return uibase::perspective(0.01f, 1000.f, 3.1415926534f*0.5f, aspect_ratio);

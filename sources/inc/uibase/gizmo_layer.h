@@ -11,29 +11,14 @@
 #ifndef __YS_GIZMOLAYER_HPP__
 #define __YS_GIZMOLAYER_HPP__
 
-#include <array>
-#include <cmath>
 #include <vector>
 
+#include "uibase/mat.h"
+
 #include "oglbase/handle.h"
+#include "oglbase/shader.h"
 
 namespace uibase {
-
-using Vec3_t = std::array<float, 3>;
-using Matrix_t = std::array<float, 16>;
-
-constexpr Matrix_t perspective(float n, float f, float alpha, float how)
-{
-    const float inv_tan_half_alpha = 1.f / std::tan(alpha * .5f);
-    const float inv_fmn = 1.f / (f-n);
-    return Matrix_t{
-        inv_tan_half_alpha, 0.f, 0.f, 0.f,
-        0.f, (1.f/how)*inv_tan_half_alpha, 0.f, 0.f,
-        0.f, 0.f, (-(f+n))*inv_fmn, -1.f,
-        0.f, 0.f, -2.f*f*n*inv_fmn, 0.f
-    };
-}
-
 
 enum class eGizmoType;
 
@@ -51,10 +36,12 @@ enum class eGizmoType
     kTransform,
 };
 
+inline std::uint32_t UnpackGizmoIndex(std::uint32_t _payload) { return _payload & 0xffffffu; }
+inline std::uint32_t UnpackSubgizmoIndex(std::uint32_t _payload) { return (_payload >> 24) & 0xffu; }
 
 struct GizmoProgram
 {
-    GizmoProgram();
+    GizmoProgram(oglbase::ShaderSources_t const& _geom_sources);
 
     void Draw(GizmoDesc const &_desc, unsigned _id, Matrix_t const& _projection) const;
 
@@ -64,15 +51,16 @@ struct GizmoProgram
 
 struct GizmoLayer
 {
-    GizmoLayer(Matrix_t const& _projection) :
-        projection_{ _projection }
-    {}
+    GizmoLayer(Matrix_t const& _projection);
 
     void RenderFrame() const;
 
-    Matrix_t projection_;
+    GizmoDesc& GetGizmo(std::uint32_t _gizmo_index);
     std::vector<GizmoDesc> gizmos_;
-    GizmoProgram renderable_;
+
+    Matrix_t projection_;
+    GizmoProgram box_program_;
+    GizmoProgram transfo_program_;
 };
 
 

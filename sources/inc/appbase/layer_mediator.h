@@ -31,13 +31,13 @@ enum LayerFlag : unsigned
 
 struct LayerMediator
 {
-    LayerMediator(Vec2i_t const& _screen_size, unsigned _flags);
+    LayerMediator(uibase::Vec2i_t const& _screen_size, unsigned _flags);
 
     void SpecialKey(eKey _key, std::uint8_t _v);
 
-    void ResizeEvent(Vec2i_t const& _size);
+    void ResizeEvent(uibase::Vec2i_t const& _size);
     void MouseDown(bool _v);
-    void MousePos(Vec2i_t const& _pos);
+    void MousePos(uibase::Vec2i_t const& _pos);
     void KeyDown(std::uint32_t _key, std::uint32_t _mod, bool _v);
     bool RunFrame();
 

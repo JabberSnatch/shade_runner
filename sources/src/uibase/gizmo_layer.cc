@@ -45,8 +45,7 @@ static oglbase::ShaderSources_t const kGizmoFrag{
 
 namespace uibase {
 
-
-GizmoProgram::GizmoProgram() :
+GizmoProgram::GizmoProgram(oglbase::ShaderSources_t const& _geom_sources) :
     shader_program_{ 0u },
     dummy_vao_{ 0u }
 {
@@ -54,7 +53,7 @@ GizmoProgram::GizmoProgram() :
 
     std::array<oglbase::ShaderPtr, 3> const shaders{
         oglbase::CompileShader(GL_VERTEX_SHADER, kGizmoVert),
-        oglbase::CompileShader(GL_GEOMETRY_SHADER, kTransfoGeom),
+        oglbase::CompileShader(GL_GEOMETRY_SHADER, _geom_sources),
         oglbase::CompileShader(GL_FRAGMENT_SHADER, kGizmoFrag)
     };
     oglbase::ShaderBinaries_t const binaries{ shaders[0], shaders[1], shaders[2] };
@@ -72,6 +71,7 @@ GizmoProgram::Draw(GizmoDesc const &_desc, unsigned _id, Matrix_t const& _projec
         if (projection_loc >= 0)
             glUniformMatrix4fv(projection_loc, 1, GL_FALSE, &_projection[0]);
     }
+
     {
         int const position_loc = glGetUniformLocation(shader_program_, "uPosition");
         if (position_loc >= 0)
@@ -82,9 +82,10 @@ GizmoProgram::Draw(GizmoDesc const &_desc, unsigned _id, Matrix_t const& _projec
         int const color_loc = glGetUniformLocation(shader_program_, "uGizmoColor");
         if (color_loc >= 0)
             glUniform3fv(color_loc, 1, &_desc.color_[0]);
+
         int const id_loc = glGetUniformLocation(shader_program_, "uGizmoID");
-        static_assert(sizeof(GLint) == sizeof(unsigned), "");
-        glUniform1i(id_loc, *(GLint*)&_id);
+        static_assert(sizeof(GLuint) == sizeof(unsigned), "");
+        glUniform1ui(id_loc, *(GLuint*)&_id);
     }
 
 	glBindVertexArray(dummy_vao_);
@@ -92,6 +93,22 @@ GizmoProgram::Draw(GizmoDesc const &_desc, unsigned _id, Matrix_t const& _projec
 	glBindVertexArray(0u);
 
     glUseProgram(0u);
+}
+
+
+GizmoLayer::GizmoLayer(Matrix_t const& _projection) :
+    projection_{ _projection },
+    gizmos_{},
+    box_program_{ kBoxGeom },
+    transfo_program_{ kTransfoGeom }
+{}
+
+
+GizmoDesc&
+GizmoLayer::GetGizmo(std::uint32_t _gizmo_index)
+{
+    const std::uint32_t gizmo_index = uibase::UnpackGizmoIndex(_gizmo_index);
+    return gizmos_[gizmo_index-1];
 }
 
 
@@ -108,7 +125,17 @@ GizmoLayer::RenderFrame() const
     for (unsigned i = 0; i < unsigned(gizmos_.size()); ++i)
     {
         GizmoDesc const& gizmo_desc = gizmos_[i];
-        renderable_.Draw(gizmo_desc, i+1, projection_);
+
+        GizmoProgram const* program{};
+        switch(gizmo_desc.type_)
+        {
+        case eGizmoType::kBox: program = &box_program_; break;
+        case eGizmoType::kTransform: program = &transfo_program_; break;
+        default:
+            break;
+        }
+
+        program->Draw(gizmo_desc, i+1, projection_);
     }
 }
 

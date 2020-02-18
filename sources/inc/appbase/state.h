@@ -14,9 +14,9 @@
 #include <array>
 #include <cstdint>
 
-namespace appbase {
+#include "uibase/mat.h"
 
-using Vec2i_t = std::array<int, 2>;
+namespace appbase {
 
 enum eKey
 {
@@ -49,12 +49,13 @@ enum fKeyMod
 };
 
 struct State {
-    Vec2i_t screen_size{ 0, 0 };
+    uibase::Vec2i_t screen_size{ 0, 0 };
     bool mouse_down{ false };
-    Vec2i_t mouse_pos{ -1, -1 };
+    uibase::Vec2i_t mouse_pos{ -1, -1 };
     std::array<bool, 256> key_down;
     std::uint32_t mod_down;
-    int active_gizmo{ 0 };
+    std::uint32_t hover_gizmo = 0u;
+    std::uint32_t select_gizmo = 0u;
 
     std::array<eKey, 256> key_map;
 };
