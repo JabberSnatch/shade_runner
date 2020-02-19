@@ -46,7 +46,7 @@ ImGuiLayer::ImGuiLayer()
 }
 
 void
-ImGuiLayer::RunFrame(State const&_state)
+ImGuiLayer::RunFrame(State& _state)
 {
     ImGuiIO &io = ImGui::GetIO();
 
@@ -105,6 +105,8 @@ ImGuiLayer::RunFrame(State const&_state)
                 if (state)
                     FKernelPath_onReturn(std::string(fkernel_path_buffer, kPathMaxLength));
             }
+
+            ImGui::Checkbox("Enable gizmos", &_state.enable_gizmos);
 
             if (ImGui::CollapsingHeader("Uniforms"))
             {

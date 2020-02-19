@@ -33,6 +33,12 @@
 #define SR_SL_TIME_UNIFORM "iTime"
 #define SR_SL_RESOLUTION_UNIFORM "iResolution"
 
+#define SR_SL_PROJMAT_UNIFORM "iProjMat"
+
+#define SR_SL_GIZMOS_UNIFORM "iGizmos"
+#define SR_SL_GIZMOS_MAX "16"
+#define SR_SL_GIZMO_COUNT_UNIFORM "iGizmoCount"
+
 /* [ DESIGN DRAFT ]
  * [X] utility
  * [X] |- file
@@ -334,7 +340,12 @@ RenderContext::Impl_::CompileKernel(ShaderStage _stage, oglbase::ShaderSources_t
     static oglbase::ShaderSources_t const kKernelPrefix{
         SR_GLSL_VERSION,
         "uniform float " SR_SL_TIME_UNIFORM ";\n",
-        "uniform vec2 " SR_SL_RESOLUTION_UNIFORM ";\n"
+        "uniform vec2 " SR_SL_RESOLUTION_UNIFORM ";\n",
+
+        "uniform mat4 " SR_SL_PROJMAT_UNIFORM ";\n",
+
+        "uniform vec3 " SR_SL_GIZMOS_UNIFORM "[" SR_SL_GIZMOS_MAX "];\n",
+        "uniform int " SR_SL_GIZMO_COUNT_UNIFORM ";\n",
     };
     oglbase::ShaderSources_t const &kernel_suffix = KernelSuffix(_stage);
 
@@ -418,6 +429,21 @@ RenderContext::RenderFrame()
         int const resolution_loc = glGetUniformLocation(impl_->shader_program_, SR_SL_RESOLUTION_UNIFORM);
         if (resolution_loc >= 0)
             glUniform2fv(resolution_loc, 1, &(impl_->resolution_[0]));
+
+        int const projmat_loc = glGetUniformLocation(impl_->shader_program_, SR_SL_PROJMAT_UNIFORM);
+        if (projmat_loc >= 0)
+            glUniformMatrix4fv(projmat_loc, 1, GL_FALSE, &projection_matrix[0]);
+
+        int const gizmos_loc = glGetUniformLocation(impl_->shader_program_, SR_SL_GIZMOS_UNIFORM);
+        if (gizmos_loc >= 0)
+        {
+            int const gizmocount_loc = glGetUniformLocation(impl_->shader_program_, SR_SL_GIZMO_COUNT_UNIFORM);
+            if (gizmocount_loc >= 0)
+                glUniform1i(gizmocount_loc, (GLint)gizmo_count);
+
+            for (unsigned i = 0; i < kGizmoCountMax; ++i)
+                glUniform3fv(gizmos_loc + i, 1, &gizmo_positions[i][0]);
+        }
     }
 
     for (std::pair<std::string, float> const& uniform : impl_->uniforms_)

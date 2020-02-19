@@ -11,6 +11,7 @@
 #ifndef __YS_SHADERUNNER_HPP__
 #define __YS_SHADERUNNER_HPP__
 
+#include <array>
 #include <string>
 #include <utility>
 #include <vector>
@@ -24,8 +25,13 @@ namespace sr {
 using UniformContainer = std::vector<std::pair<std::string, float>>;
 using ErrorLogContainer = std::vector<std::pair<int, std::string>>;
 
+using Matrix_t = std::array<float, 16>;
+using Vec3_t = std::array<float, 3>;
+
 class RenderContext
 {
+public:
+    static constexpr unsigned kGizmoCountMax = 16u;
 public:
 	RenderContext();
 	~RenderContext();
@@ -40,6 +46,13 @@ public:
 	std::string const &GetKernelPath(ShaderStage _stage) const;
 
     utility::Callback<std::string const&, ErrorLogContainer const&> onFKernelCompileFinished;
+
+    Matrix_t projection_matrix{ 1.f, 0.f, 0.f, 0.f,
+                                0.f, 1.f, 0.f, 0.f,
+                                0.f, 0.f, 1.f, 0.f,
+                                0.f, 0.f, 0.f, 1.f };
+    int gizmo_count = 0;
+    Vec3_t gizmo_positions[kGizmoCountMax];
 
 private:
 	struct Impl_;

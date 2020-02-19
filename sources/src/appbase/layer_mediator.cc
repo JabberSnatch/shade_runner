@@ -9,6 +9,8 @@
 
 #include "appbase/layer_mediator.h"
 
+#include <cstring>
+
 #include <imgui.h>
 
 #include "oglbase/framebuffer.h"
@@ -30,6 +32,8 @@ uibase::Matrix_t MakeGizmoLayerProjection(uibase::Vec2i_t const& _screen_size);
 
 namespace appbase {
 
+static constexpr int kTransfoCount = 4;
+
 LayerMediator::LayerMediator(uibase::Vec2i_t const& _screen_size, unsigned _flags)
 {
     state_.screen_size = _screen_size;
@@ -40,6 +44,7 @@ LayerMediator::LayerMediator(uibase::Vec2i_t const& _screen_size, unsigned _flag
     {
         sr_layer_ = std::make_unique<sr::RenderContext>();
         sr_layer_->SetResolution(state_.screen_size[0], state_.screen_size[1]);
+        sr_layer_->projection_matrix = MakeGizmoLayerProjection(state_.screen_size);
     }
     if (_flags & LayerFlag::kGizmo)
     {
@@ -57,11 +62,14 @@ LayerMediator::LayerMediator(uibase::Vec2i_t const& _screen_size, unsigned _flag
                     );
 #endif
 
-        gizmo_layer_->gizmos_.push_back(
-            uibase::GizmoDesc{ uibase::eGizmoType::kTransform,
-                    uibase::Vec3_t{ 0.f, 0.f, -3.f },
-                    kGizmoColorOff }
-        );
+        for (int i = 0; i < kTransfoCount; ++i)
+        {
+            gizmo_layer_->gizmos_.push_back(
+                uibase::GizmoDesc{ uibase::eGizmoType::kTransform,
+                        uibase::Vec3_t{ 0.f, 0.f + (float)i * 0.01f, -3.f },
+                        kGizmoColorOff }
+            );
+        }
     }
     if (_flags & LayerFlag::kImgui)
     {
@@ -96,6 +104,22 @@ LayerMediator::LayerMediator(uibase::Vec2i_t const& _screen_size, unsigned _flag
                 this->sr_layer_->SetUniforms(_uniforms);
             });
     }
+
+    if (sr_layer_ && gizmo_layer_)
+    {
+        for (std::uint32_t i = 0;
+             i < sr_layer_->kGizmoCountMax && i < gizmo_layer_->gizmos_.size();
+             ++i)
+        {
+            std::cout << gizmo_layer_->gizmos_[i].position_[0] << " " << gizmo_layer_->gizmos_[i].position_[1] << " " << gizmo_layer_->gizmos_[i].position_[2] << std::endl;
+
+            std::memcpy(&(sr_layer_->gizmo_positions[i]),
+                        &gizmo_layer_->gizmos_[i].position_[0],
+                        sizeof(float)*3);
+        }
+
+        sr_layer_->gizmo_count = (int)gizmo_layer_->gizmos_.size();
+    }
 }
 
 void
@@ -115,6 +139,7 @@ LayerMediator::ResizeEvent(uibase::Vec2i_t const& _size)
     if (sr_layer_)
     {
         sr_layer_->SetResolution(state_.screen_size[0], state_.screen_size[1]);
+        sr_layer_->projection_matrix = MakeGizmoLayerProjection(state_.screen_size);
     }
 
     if (gizmo_layer_)
@@ -251,6 +276,12 @@ LayerMediator::MousePos(uibase::Vec2i_t const& _pos)
                 {
                     std::cout << "z" << std::endl;
                 }
+
+                const std::uint32_t gizmo_index = uibase::UnpackGizmoIndex(state_.select_gizmo);
+                if (gizmo_index < sr_layer_->kGizmoCountMax)
+                    std::memcpy(&(sr_layer_->gizmo_positions[gizmo_index-1]),
+                                &gizmo.position_[0],
+                                sizeof(float)*3);
             }
         }
     }
@@ -291,7 +322,9 @@ LayerMediator::RunFrame()
 
     if (gizmo_layer_)
     {
-        gizmo_layer_->RenderFrame();
+        if (state_.enable_gizmos)
+            gizmo_layer_->RenderFrame();
+
         framebuffer_->Unbind();
 
         glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer_->fbo_);

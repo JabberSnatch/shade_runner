@@ -21,7 +21,7 @@ namespace appbase {
 struct ImGuiLayer
 {
     ImGuiLayer();
-    void RunFrame(State const&_state);
+    void RunFrame(State& _state);
 
     static constexpr std::size_t kPathMaxLength = 512u;
     static constexpr std::size_t kUniformMaxLength = 32u;

@@ -54,6 +54,8 @@ struct State {
     uibase::Vec2i_t mouse_pos{ -1, -1 };
     std::array<bool, 256> key_down;
     std::uint32_t mod_down;
+
+    bool enable_gizmos = false;
     std::uint32_t hover_gizmo = 0u;
     std::uint32_t select_gizmo = 0u;
 

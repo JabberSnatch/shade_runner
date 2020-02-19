@@ -15,6 +15,8 @@
 
 #include "uibase/mat.h"
 
+#include "utility/callback.h"
+
 #include "oglbase/handle.h"
 #include "oglbase/shader.h"
 
@@ -56,6 +58,7 @@ struct GizmoLayer
     void RenderFrame() const;
 
     GizmoDesc& GetGizmo(std::uint32_t _gizmo_index);
+    utility::Callback<GizmoDesc const&> Gizmos_onMove;
     std::vector<GizmoDesc> gizmos_;
 
     Matrix_t projection_;
