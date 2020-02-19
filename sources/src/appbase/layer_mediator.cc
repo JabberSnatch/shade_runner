@@ -25,6 +25,8 @@ namespace {
 static uibase::Vec3_t const kGizmoColorOff{ 0.f, 1.f, 0.f };
 static uibase::Vec3_t const kGizmoColorOn{ 1.f, 0.f, 0.f };
 
+float AspectRatio(uibase::Vec2i_t const& _screen_size);
+
 std::unique_ptr<oglbase::Framebuffer> MakeGizmoLayerFramebuffer(uibase::Vec2i_t const& _screen_size);
 uibase::Matrix_t MakeGizmoLayerProjection(uibase::Vec2i_t const& _screen_size);
 
@@ -257,27 +259,52 @@ LayerMediator::MousePos(uibase::Vec2i_t const& _pos)
 
             if (gizmo.type_ == uibase::eGizmoType::kTransform)
             {
-                const std::uint32_t subgizmo_index = uibase::UnpackSubgizmoIndex(state_.select_gizmo);
+                std::uint32_t const subgizmo_index = uibase::UnpackSubgizmoIndex(state_.select_gizmo);
                 std::cout << "move transfo" << std::endl;
                 std::cout << "delta " << delta[0] << " " << delta[1] << std::endl;
 
-                const uibase::Vec2_t deltaf = uibase::vec2_itof(delta);
-                if (subgizmo_index == 0u)
-                {
-                    std::cout << "x" << std::endl;
-                    gizmo.position_[0] += deltaf[0] * 0.01f;
-                }
-                if (subgizmo_index == 1u)
-                {
-                    std::cout << "y" << std::endl;
-                    gizmo.position_[1] += deltaf[1] * 0.01f;
-                }
-                if (subgizmo_index == 2u)
-                {
-                    std::cout << "z" << std::endl;
-                }
+                uibase::Vec2_t const deltaf = uibase::vec2_itof(delta);
+                uibase::Vec3_t selected_axis{ 0.f, 0.f, 0.f };
+                selected_axis[subgizmo_index] = 1.f;
 
-                const std::uint32_t gizmo_index = uibase::UnpackGizmoIndex(state_.select_gizmo);
+                uibase::Vec4_t const WS_gizmo_position{
+                    gizmo.position_[0],
+                    gizmo.position_[1],
+                    gizmo.position_[2],
+                    1.f };
+                uibase::Vec4_t CS_gizmo_position =
+                    uibase::mat4_vec4_mul(sr_layer_->projection_matrix, WS_gizmo_position);
+                CS_gizmo_position[0] /= CS_gizmo_position[3];
+                CS_gizmo_position[1] /= CS_gizmo_position[3];
+                CS_gizmo_position[2] /= CS_gizmo_position[3];
+
+                uibase::Vec4_t const WS_axis_offset{
+                    gizmo.position_[0] + selected_axis[0],
+                    gizmo.position_[1] + selected_axis[1],
+                    gizmo.position_[2] + selected_axis[2],
+                    1.f };
+                uibase::Vec4_t CS_axis_offset =
+                    uibase::mat4_vec4_mul(sr_layer_->projection_matrix, WS_axis_offset);
+                CS_axis_offset[0] /= CS_axis_offset[3];
+                CS_axis_offset[1] /= CS_axis_offset[3];
+                CS_axis_offset[2] /= CS_axis_offset[3];
+
+                uibase::Vec3_t CS_axis_direction = uibase::vec3_sub(*(uibase::Vec3_t*)(&CS_axis_offset),
+                                                                    *(uibase::Vec3_t*)(&CS_gizmo_position));
+
+                CS_axis_direction[1] *= AspectRatio(state_.screen_size);
+
+                uibase::Vec3_t const result = uibase::vec3_add(
+                    gizmo.position_,
+                    uibase::vec3_float_mul(
+                        uibase::vec3_add(
+                            uibase::vec3_float_mul(selected_axis, CS_axis_direction[0]*deltaf[0]),
+                            uibase::vec3_float_mul(selected_axis, CS_axis_direction[1]*deltaf[1])),
+                        0.1f));
+
+                std::memcpy(&gizmo.position_[0], &result[0], 3*sizeof(float));
+
+                std::uint32_t const gizmo_index = uibase::UnpackGizmoIndex(state_.select_gizmo);
                 if (gizmo_index < sr_layer_->kGizmoCountMax)
                     std::memcpy(&(sr_layer_->gizmo_positions[gizmo_index-1]),
                                 &gizmo.position_[0],
@@ -346,6 +373,11 @@ LayerMediator::RunFrame()
 
 namespace {
 
+float AspectRatio(uibase::Vec2i_t const& _screen_size)
+{
+    return static_cast<float>(_screen_size[1]) / static_cast<float>(_screen_size[0]);
+}
+
 std::unique_ptr<oglbase::Framebuffer>
 MakeGizmoLayerFramebuffer(uibase::Vec2i_t const& _screen_size)
 {
@@ -362,7 +394,7 @@ MakeGizmoLayerFramebuffer(uibase::Vec2i_t const& _screen_size)
 uibase::Matrix_t
 MakeGizmoLayerProjection(uibase::Vec2i_t const& _screen_size)
 {
-    float aspect_ratio = static_cast<float>(_screen_size[1]) / static_cast<float>(_screen_size[0]);
+    float aspect_ratio = AspectRatio(_screen_size);
     return uibase::perspective(0.01f, 1000.f, 3.1415926534f*0.5f, aspect_ratio);
 }
 
