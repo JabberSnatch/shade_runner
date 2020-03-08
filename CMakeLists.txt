@@ -79,6 +79,7 @@ function(_COMMON_PROJECT_OPTIONS TARGET_NAME)
 
 	if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 	  add_compile_options(-std:c++latest)
+	  add_compile_definitions(_SCL_SECURE_NO_WARNINGS)
 
 	  if (WARN_VERBOSE)
 		add_compile_options(-Wall)
@@ -137,8 +138,9 @@ _common_project_options(shaderunner)
 
 add_library(appbase STATIC ${APPBASE_SOURCES})
 target_link_libraries(appbase
-	PRIVATE
+	PUBLIC
 		oglbase
+	PRIVATE
 		shaderunner
 		uibase
 )
@@ -149,9 +151,7 @@ _common_project_options(appbase)
 add_executable(win32_bootstrap WIN32 ${WIN32_BOOTSTRAP_SOURCES})
 target_link_libraries(win32_bootstrap
 	PRIVATE
-		oglbase
-		uibase
-		shaderunner
+		appbase
 )
 _common_project_options(win32_bootstrap)
 

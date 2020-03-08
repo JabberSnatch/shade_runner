@@ -205,6 +205,7 @@ LayerMediator::MousePos(uibase::Vec2i_t const& _pos)
 
     if (gizmo_layer_)
     {
+
         // =====================================================================
         // framebuffer_->ReadPixel() ?
         framebuffer_->Bind();
@@ -351,6 +352,8 @@ LayerMediator::RunFrame()
     {
         if (state_.enable_gizmos)
             gizmo_layer_->RenderFrame();
+        else
+            gizmo_layer_->ClearIDBuffer();
 
         framebuffer_->Unbind();
 

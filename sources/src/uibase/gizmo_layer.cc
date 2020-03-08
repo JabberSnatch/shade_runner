@@ -40,6 +40,8 @@ static oglbase::ShaderSources_t const kGizmoFrag{
     #include "./shaders/gizmo.frag.h"
 };
 
+static GLfloat const kGizmoClearColor[]{ 0.f, 0.f, 0.f, 0.f };
+
 } // namespace
 
 
@@ -113,10 +115,16 @@ GizmoLayer::GetGizmo(std::uint32_t _gizmo_index)
 
 
 void
+GizmoLayer::ClearIDBuffer() const
+{
+    glClearBufferfv(GL_COLOR, 1, &kGizmoClearColor[0]);
+}
+
+
+void
 GizmoLayer::RenderFrame() const
 {
-    static GLfloat const kGizmoClearColor[]{ 0.f, 0.f, 0.f, 0.f };
-    glClearBufferfv(GL_COLOR, 1, &kGizmoClearColor[0]);
+    ClearIDBuffer();
 
     glEnable(GL_DEPTH_TEST);
     static GLfloat const clear_depth{ 1.f };

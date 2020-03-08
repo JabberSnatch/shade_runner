@@ -23,7 +23,7 @@ using Vec2_t = std::array<float, 2>;
 using Vec2i_t = std::array<int, 2>;
 using Matrix_t = std::array<float, 16>;
 
-constexpr Matrix_t perspective(float n, float f, float alpha, float how)
+inline Matrix_t perspective(float n, float f, float alpha, float how)
 {
     const float inv_tan_half_alpha = 1.f / std::tan(alpha * .5f);
     const float inv_fmn = 1.f / (f-n);

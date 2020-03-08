@@ -80,8 +80,10 @@ ImGuiLayer::RunFrame(State& _state)
         ImGui::EndMainMenuBar();
     }
 
-    if (false && show_demo_window)
+#if 0
+    if (show_demo_window)
         ImGui::ShowDemoWindow(&show_demo_window);
+#endif
 
     if (show_main_window)
     {
@@ -116,8 +118,7 @@ ImGuiLayer::RunFrame(State& _state)
                     uniforms.emplace_back(std::pair<std::string, float>{"", 0.f});
                 } ImGui::SameLine();
 
-                if (ImGui::Button("-"))
-                    ;
+                ImGui::Button("-");
 
                 { ImGui::PushItemWidth(-100);
                     std::array<char, kUniformMaxLength> buff;

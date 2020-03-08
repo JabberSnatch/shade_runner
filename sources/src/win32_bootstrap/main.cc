@@ -7,8 +7,6 @@
  * ----------------------------------------------------------------------------
  */
 
-#define _SCL_SECURE_NO_WARNINGS
-
 #pragma warning(push)
 #pragma warning(disable : 4668)
 #include <windows.h>
@@ -34,13 +32,11 @@
 #include <memory>
 
 #include <boost/numeric/conversion/cast.hpp>
-#include <imgui.h>
 #include <GL/glew.h>
 #include <GL/wglew.h>
 
 #include "oglbase/error.h"
-#include "shaderunner/shaderunner.h"
-#include "uibase/imguicontext.h"
+#include "appbase/layer_mediator.h"
 
 namespace WXtk {
 template <typename T> void unref_param(T&&) {}
@@ -89,8 +85,7 @@ static char const *wnd_title = "ShadeRunner";
 constexpr int boot_width = 1280;
 constexpr int boot_height = 720;
 
-std::unique_ptr<sr::RenderContext> sr_context{};
-std::unique_ptr<uibase::ImGuiContext> ui_context{};
+std::unique_ptr<appbase::LayerMediator> layer_mediator;
 
 Win32Handles handles{};
 
@@ -175,8 +170,8 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 			PFD_DRAW_TO_WINDOW;
 		pixel_format_desc.iPixelType = PFD_TYPE_RGBA;
 		pixel_format_desc.cColorBits = 32;
-		pixel_format_desc.cDepthBits = 0; // NOTE: Hope it wasn't too hard finding that one
-		pixel_format_desc.cStencilBits = 0;
+		pixel_format_desc.cDepthBits = 24;
+		pixel_format_desc.cStencilBits = 8;
 
 		const int pixel_format = ChoosePixelFormat(handles.device_context, &pixel_format_desc);
 		SetPixelFormat(handles.device_context, pixel_format, &pixel_format_desc);
@@ -253,40 +248,34 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 #ifdef SR_GL_DEBUG_CONTEXT
 	oglbase::DebugMessageControl<> debugMessageControl{};
 #endif
-	sr_context.reset(new sr::RenderContext());
-	ui_context.reset(new uibase::ImGuiContext());
+
+	layer_mediator = std::make_unique<appbase::LayerMediator>(
+		uibase::Vec2i_t{ boot_width, boot_height },
+		appbase::LayerFlag::kShaderunner
+		| appbase::LayerFlag::kGizmo
+		| appbase::LayerFlag::kImgui
+	);
+
+    layer_mediator->SpecialKey(appbase::eKey::kTab, (std::uint8_t)(VK_TAB & 0xff));
+    layer_mediator->SpecialKey(appbase::eKey::kLeft, (std::uint8_t)(VK_LEFT & 0xff));
+    layer_mediator->SpecialKey(appbase::eKey::kRight, (std::uint8_t)(VK_RIGHT & 0xff));
+    layer_mediator->SpecialKey(appbase::eKey::kUp, (std::uint8_t)(VK_UP & 0xff));
+    layer_mediator->SpecialKey(appbase::eKey::kDown, (std::uint8_t)(VK_DOWN & 0xff));
+    layer_mediator->SpecialKey(appbase::eKey::kPageUp, (std::uint8_t)(VK_PRIOR & 0xff));
+    layer_mediator->SpecialKey(appbase::eKey::kPageDown, (std::uint8_t)(VK_NEXT & 0xff));
+    layer_mediator->SpecialKey(appbase::eKey::kHome, (std::uint8_t)(VK_HOME & 0xff));
+    layer_mediator->SpecialKey(appbase::eKey::kEnd, (std::uint8_t)(VK_END & 0xff));
+    layer_mediator->SpecialKey(appbase::eKey::kInsert, (std::uint8_t)(VK_INSERT & 0xff));
+    layer_mediator->SpecialKey(appbase::eKey::kDelete, (std::uint8_t)(VK_DELETE & 0xff));
+    layer_mediator->SpecialKey(appbase::eKey::kBackspace, (std::uint8_t)(VK_BACK & 0xff));
+    layer_mediator->SpecialKey(appbase::eKey::kEnter, (std::uint8_t)(VK_RETURN & 0xff));
+    layer_mediator->SpecialKey(appbase::eKey::kEscape, (std::uint8_t)(VK_ESCAPE & 0xff));
+
 	if (__argc > 1)
 	{
-		sr_context->WatchKernelFile(sr::ShaderStage::kFragment, __argv[1]);
+		layer_mediator->sr_layer_->WatchKernelFile(sr::ShaderStage::kFragment, __argv[1]);
 	}
-	sr_context->SetResolution(boot_width, boot_height);
-	ui_context->SetResolution(boot_width, boot_height);
 	wglMakeCurrent(handles.device_context, NULL);
-
-	{
-		ImGuiIO &io = ImGui::GetIO();
-		io.KeyMap[ImGuiKey_Tab] = VK_TAB;
-		io.KeyMap[ImGuiKey_LeftArrow] = VK_LEFT;
-		io.KeyMap[ImGuiKey_RightArrow] = VK_RIGHT;
-		io.KeyMap[ImGuiKey_UpArrow] = VK_UP;
-		io.KeyMap[ImGuiKey_DownArrow] = VK_DOWN;
-		io.KeyMap[ImGuiKey_PageUp] = VK_PRIOR;
-		io.KeyMap[ImGuiKey_PageDown] = VK_NEXT;
-		io.KeyMap[ImGuiKey_Home] = VK_HOME;
-		io.KeyMap[ImGuiKey_End] = VK_END;
-		io.KeyMap[ImGuiKey_Insert] = VK_INSERT;
-		io.KeyMap[ImGuiKey_Delete] = VK_DELETE;
-		io.KeyMap[ImGuiKey_Backspace] = VK_BACK;
-		io.KeyMap[ImGuiKey_Space] = VK_SPACE;
-		io.KeyMap[ImGuiKey_Enter] = VK_RETURN;
-		io.KeyMap[ImGuiKey_Escape] = VK_ESCAPE;
-		io.KeyMap[ImGuiKey_A] = 'A';
-		io.KeyMap[ImGuiKey_C] = 'C';
-		io.KeyMap[ImGuiKey_V] = 'V';
-		io.KeyMap[ImGuiKey_X] = 'X';
-		io.KeyMap[ImGuiKey_Y] = 'Y';
-		io.KeyMap[ImGuiKey_Z] = 'Z';
-	}
 
 	SetWindowLongPtr(handles.hWnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(&WndProc));
 
@@ -298,8 +287,7 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance,
 	}
 
 	wglMakeCurrent(handles.device_context, handles.gl_context);
-	sr_context.reset(nullptr);
-	ui_context.reset(nullptr);
+    layer_mediator.reset(nullptr);
 	wglMakeCurrent(handles.device_context, NULL);
 
 	FreeConsole();
@@ -333,159 +321,112 @@ LRESULT CALLBACK WndProc(_In_ HWND   hwnd,
 						 _In_ LPARAM lParam)
 {
 	LRESULT result = 1;
-	ImGuiIO &io = ImGui::GetIO();
 
 	switch(uMsg)
 	{
+
 	case WM_PAINT:
 	{
 		assert(handles.device_context);
 		assert(handles.gl_context);
-		assert(sr_context);
+		assert(layer_mediator);
 
-		io.KeyCtrl = (::GetKeyState(VK_CONTROL) & 0x8000) != 0;
-		io.KeyShift = (::GetKeyState(VK_SHIFT) & 0x8000) != 0;
-		io.KeyAlt = (::GetKeyState(VK_MENU) & 0x8000) != 0;
-		io.KeySuper = false;
-
-		{
-			ImGuiStyle &style = ImGui::GetStyle();
-			style.FrameRounding = 0.f;
-			style.WindowRounding = 1.f;
-			style.ScrollbarRounding = 0.f;
-			style.GrabRounding = 2.f;
-		}
-
-		constexpr int kTextBufferSize = 512;
-		static bool show_demo_window = false;
-		static bool show_file_selection_window = true;
-		static char fkernel_path_buffer[kTextBufferSize] = "";
-		ImGui::NewFrame();
-		if (ImGui::BeginMainMenuBar())
-		{
-			if (ImGui::BeginMenu("Windows"))
-			{
-				ImGui::MenuItem("Demo", nullptr, &show_demo_window);
-				if (ImGui::MenuItem("File Selection", nullptr, &show_file_selection_window) && false)
-				{
-					std::string const &fkernel_path = sr_context->GetKernelPath(sr::ShaderStage::kFragment);
-					assert(fkernel_path.size() <= kTextBufferSize);
-					std::copy(fkernel_path.cbegin(), fkernel_path.cend(), &fkernel_path_buffer[0]);
-				}
-				ImGui::EndMenu();
-			}
-			ImGui::EndMainMenuBar();
-		}
-		if (show_demo_window)
-			ImGui::ShowDemoWindow(&show_demo_window);
-		if (show_file_selection_window)
-		{
-			if (ImGui::Begin("File Selection", &show_file_selection_window, 0))
-			{
-				std::string const &fkernel_path = sr_context->GetKernelPath(sr::ShaderStage::kFragment);
-				assert(fkernel_path.size() <= kTextBufferSize);
-				std::copy(fkernel_path.cbegin(), fkernel_path.cend(), &fkernel_path_buffer[0]);
-				bool const state = ImGui::InputText("Path",
-													fkernel_path_buffer,
-													kTextBufferSize,
-													ImGuiInputTextFlags_EnterReturnsTrue);
-				if (state)
-				{
-					std::cout << "imgui input received" << std::endl;
-					wglMakeCurrent(handles.device_context, handles.gl_context);
-					sr_context->WatchKernelFile(sr::ShaderStage::kFragment, fkernel_path_buffer);
-					wglMakeCurrent(handles.device_context, NULL);
-				}
-			}
-			ImGui::End();
-		}
-
-		ImGui::EndFrame();
-		ImGui::Render();
-
-		wglMakeCurrent(handles.device_context, handles.gl_context);
-		if (!sr_context->RenderFrame())
+        wglMakeCurrent(handles.device_context, handles.gl_context);
+		if (!layer_mediator->RunFrame())
 		{
 			ValidateRect(hwnd, NULL);
 		}
-		ui_context->Render();
 		::SwapBuffers(handles.device_context);
-		wglMakeCurrent(handles.device_context, NULL);
-	} break;
+        wglMakeCurrent(handles.device_context, NULL);
+    } break;
+
 	case WM_SIZE:
 	{
 		int width = LOWORD(lParam);
 		int height = HIWORD(lParam);
-		if (sr_context)
-		{
-			wglMakeCurrent(handles.device_context, handles.gl_context);
-			sr_context->SetResolution(width, height);
-			ui_context->SetResolution(width, height);
-			wglMakeCurrent(handles.device_context, NULL);
-		}
+
+        wglMakeCurrent(handles.device_context, handles.gl_context);
+		if (layer_mediator)
+            layer_mediator->ResizeEvent({ width, height });
+        wglMakeCurrent(handles.device_context, NULL);
 	} break;
+
     case WM_LBUTTONDOWN: case WM_LBUTTONDBLCLK:
-    case WM_RBUTTONDOWN: case WM_RBUTTONDBLCLK:
-    case WM_MBUTTONDOWN: case WM_MBUTTONDBLCLK:
+        //case WM_RBUTTONDOWN: case WM_RBUTTONDBLCLK:
+        //case WM_MBUTTONDOWN: case WM_MBUTTONDBLCLK:
     {
-        int button = 0;
-        if (uMsg == WM_LBUTTONDOWN || uMsg == WM_LBUTTONDBLCLK) button = 0;
-        if (uMsg == WM_RBUTTONDOWN || uMsg == WM_RBUTTONDBLCLK) button = 1;
-        if (uMsg == WM_MBUTTONDOWN || uMsg == WM_MBUTTONDBLCLK) button = 2;
-        if (!ImGui::IsAnyMouseDown() && ::GetCapture() == NULL)
+        if (::GetCapture() == NULL)
             ::SetCapture(hwnd);
-        io.MouseDown[button] = true;
+
+        layer_mediator->MouseDown(true);
     } break;
     case WM_LBUTTONUP:
-    case WM_RBUTTONUP:
-    case WM_MBUTTONUP:
+        //case WM_RBUTTONUP:
+        //case WM_MBUTTONUP:
     {
-        int button = 0;
-        if (uMsg == WM_LBUTTONUP) button = 0;
-        if (uMsg == WM_RBUTTONUP) button = 1;
-        if (uMsg == WM_MBUTTONUP) button = 2;
-        io.MouseDown[button] = false;
-        if (!ImGui::IsAnyMouseDown() && ::GetCapture() == hwnd)
+        if (::GetCapture() == hwnd)
             ::ReleaseCapture();
+
+        layer_mediator->MouseDown(false);
     } break;
+
 	case WM_MOUSEMOVE:
 	{
 		int const pos_x = GET_X_LPARAM(lParam);
 		int const pos_y = GET_Y_LPARAM(lParam);
-		io.MousePos = ImVec2(boost::numeric_cast<float>(pos_x),
-							 boost::numeric_cast<float>(pos_y));
-		io.MouseDown[0] = (wParam & MK_LBUTTON) != 0u;
-		io.MouseDown[1] = (wParam & MK_RBUTTON) != 0u;
-		io.MouseDown[2] = (wParam & MK_MBUTTON) != 0u;
+        wglMakeCurrent(handles.device_context, handles.gl_context);
+        layer_mediator->MousePos({ pos_x, layer_mediator->state_.screen_size[1] - pos_y });
+        layer_mediator->MouseDown((wParam & MK_LBUTTON) != 0u);
+        wglMakeCurrent(handles.device_context, NULL);
 	} break;
+
+#if 0
     case WM_MOUSEWHEEL:
         io.MouseWheel += (float)GET_WHEEL_DELTA_WPARAM(wParam) / (float)WHEEL_DELTA;
 		break;
     case WM_MOUSEHWHEEL:
         io.MouseWheelH += (float)GET_WHEEL_DELTA_WPARAM(wParam) / (float)WHEEL_DELTA;
 		break;
+#endif
+
     case WM_KEYDOWN:
     case WM_SYSKEYDOWN:
-        if (wParam < 256)
-            io.KeysDown[wParam] = 1;
-		result = CallWindowProc(MinimalWndProc, hwnd, uMsg, wParam, lParam);
-		break;
     case WM_KEYUP:
     case WM_SYSKEYUP:
+    {
+        std::uint32_t km = 0u;
+        km |= ((::GetKeyState(VK_CONTROL) & 0x8000) != 0) ? appbase::fKeyMod::kCtrl : 0u;
+        km |= ((::GetKeyState(VK_SHIFT) & 0x8000) != 0) ? appbase::fKeyMod::kShift : 0u;
+        km |= ((::GetKeyState(VK_MENU) & 0x8000) != 0) ? appbase::fKeyMod::kAlt : 0u;
+
         if (wParam < 256)
-            io.KeysDown[wParam] = 0;
+            layer_mediator->KeyDown((std::uint32_t)wParam, km,
+                                    uMsg == WM_KEYDOWN || uMsg == WM_SYSKEYDOWN);
+
 		result = CallWindowProc(MinimalWndProc, hwnd, uMsg, wParam, lParam);
-		break;
+    } break;
+
     case WM_CHAR:
+    {
+        std::uint32_t km = 0u;
+        km |= ((::GetKeyState(VK_CONTROL) & 0x8000) != 0) ? appbase::fKeyMod::kCtrl : 0u;
+        km |= ((::GetKeyState(VK_SHIFT) & 0x8000) != 0) ? appbase::fKeyMod::kShift : 0u;
+        km |= ((::GetKeyState(VK_MENU) & 0x8000) != 0) ? appbase::fKeyMod::kAlt : 0u;
+
         // You can also use ToAscii()+GetKeyboardState() to retrieve characters.
         if (wParam > 0 && wParam < 0x10000)
-            io.AddInputCharacter((unsigned short)wParam);
+        {
+            layer_mediator->KeyDown((std::uint32_t)wParam & 0xff, km, true);
+            layer_mediator->KeyDown((std::uint32_t)wParam & 0xff, km, false);
+        }
+
 		result = CallWindowProc(MinimalWndProc, hwnd, uMsg, wParam, lParam);
-		break;
+    } break;
+
 	default:
 		result = CallWindowProc(MinimalWndProc, hwnd, uMsg, wParam, lParam);
 		break;
 	}
 
-	return result;
+    return result;
 }

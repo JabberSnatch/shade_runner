@@ -55,6 +55,7 @@ struct GizmoLayer
 {
     GizmoLayer(Matrix_t const& _projection);
 
+    void ClearIDBuffer() const;
     void RenderFrame() const;
 
     GizmoDesc& GetGizmo(std::uint32_t _gizmo_index);
