@@ -199,6 +199,11 @@ ImGuiLayer::onFKernelCompileFinished(std::string const&_path, sr::ErrorLogContai
             error_console_buffer += std::to_string(it->first) + " " + line + "\n" + it->second + "\n";
             ++it;
         }
+        if (it->first == 0)
+        {
+            error_console_buffer += it->second + "\n";
+            ++it;
+        }
 
         std::size_t index = work_data.find('\n');
         work_data = work_data.substr(index+1);

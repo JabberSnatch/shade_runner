@@ -371,18 +371,24 @@ RenderContext::Impl_::CompileKernel(ShaderStage _stage, oglbase::ShaderSources_t
             }(error_msg);
 
             int line_index = 0;
-            std::string message;
+            std::string message = head;
             {
                 std::size_t const linenum_begin = head.find(':') + 1;
                 std::size_t const linenum_end = head.find(':', linenum_begin) + 1;
                 std::size_t const paren_begin = head.find('(', linenum_begin);
                 std::size_t const message_begin = head.find(':', linenum_end);
 
-                message = head.substr(message_begin+2);
-                line_index = std::stoi(head.substr(linenum_begin, paren_begin-linenum_begin));
+                if (linenum_begin != ~0ull &&
+                    linenum_end != ~0ull &&
+                    paren_begin != ~0ull &&
+                    message_begin != ~0ull)
+                {
+                    message = head.substr(message_begin+2);
+                    line_index = std::stoi(head.substr(linenum_begin, paren_begin-linenum_begin)) - 3;
+                }
             }
 
-            errorlog.emplace_back(std::make_pair(line_index-3, message));
+            errorlog.emplace_back(std::make_pair(line_index, message));
         }
     }
     return std::make_pair(std::move(shader), std::move(errorlog));
