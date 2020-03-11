@@ -67,25 +67,27 @@ vec3 compute_ray_plane(vec3 half_diagonal, vec2 clip_coord)
 	return normalize(target);
 }
 
-float sample_noise(vec3 p)
+float sample_noise(vec3 p, float octave)
 {
     float density = 0.0;
-    vec3 d2 = hash3(vec3(1.0, -13.0, 0.0)) * iTime * .5;
-    for (float i = 1.0; i < pow(2.0, 4.0); i *= 2.0)
-        density += max(0.0,
-                       min(1.0, max(0.0, (noise3((p*10000000.0 + d2/(i*1.2))*i)
-                                          //- 0.1
-                                          //- (0.05 * (sin(iTime) + 2.0))
-                                        ))) / i);
-    return density;
+    float max_i = exp2(octave);
+    float bd = 30.0 + sin(iTime) * 10.0;
+    float scale = 1.2;
+    float offset = -0.05 + cos(iTime*0.2) * 0.2;
+    float of = 1.2;
+
+    vec3 d2 = hash3(vec3(-1.0, -13.0, 0.0)) * iTime * .25;
+
+    for (float i = 1.0; i < max_i; i *= 2.0)
+        density += (bd * (noise3((p*scale + d2/(i*of))*i) + offset)) / i;
+
+    return max(0.0, density);
 }
 
 void imageMain(inout vec4 frag_color, vec2 frag_coord)
 {
     vec2 uv = frag_coord / iResolution.xy;
     uv.x *= iResolution.x / iResolution.y;
-
-    vec3 d2 = hash3(vec3(1.0, -13.0, 0.0)) * iTime * .5;
 
 	float aspect_ratio = iResolution.y / iResolution.x;
 	float fov = 60.0 * 3.1415926536 / 180.0;
@@ -106,56 +108,52 @@ void imageMain(inout vec4 frag_color, vec2 frag_coord)
 
     float t0 = x2;
     float t1 = length(ro - i1);
-    float stepcount = 32;
-    float step = (t1-t0)/stepcount;
+    float stepcount = 64;
+    float dt0 = (t1-t0)/stepcount;
     float t = 0.0;
     float density = 0.0;
     float i;
 
-    vec3 Ld = normalize(vec3(0.0, 0.0, -1.0));
+    vec3 Ld = normalize(vec3(0.5, 1.0, 0.5));
 
     vec3 Lo = vec3(0.0);
 
     vec3 Li_sky = vec3(0.1, 0.55, 0.85);
-    vec3 Li_light = vec3(1.0);
+    vec3 Li_light = vec3(0.97, 0.95, 0.92);
 
     float st0_count = stepcount + 1.0;
-    float dt0 = step;
     float Tr0 = 1.0;
-    float St0 = sample_noise(ro) / dt0;
-    if (x0 < 1.0) for (i =0.0; i < st0_count; i += 1.0)
+    float St0 = 0.0;
+    if (x0 < 1.0) for (i = 0.0; i < st0_count; i += 1.0)
     {
-        t = t0 + step*i;
+        t = t0 + dt0*i;
         vec3 p = ro + t*rd;
 
-        float st0 = sample_noise(p);
-        St0 += st0 / dt0;
+        float st0 = sample_noise(p, 4);
+        St0 += st0 * dt0;
 
-        float st1_count = 2.0;
-        float dt1 = step;
+        float st1_count = 16.0;
+        float dt1 = 0.01;
         float Tr1 = 1.0;
-        float St1 = st0 / dt1;
+        float St1 = 0.0;
         for (float j = 0.0; j < st1_count; ++j)
         {
-            float st1_t = j*dt1+1.0;
-            float st1 = sample_noise(p + Ld * st1_t);
+            float st1_t = (j+1.0)*dt1;
+            vec3 p1 = p + Ld*st1_t;
+            float st1 = 0.0;
+            if (length(p1) <= 1.0)
+                st1 = sample_noise(p1, 1);
 
-            St1 += st1 / dt1;
+            St1 += st1 * dt1;
         }
 
-        Tr1 = exp(-(St0+St1) / (st0_count+st1_count));
-
-        Lo += (Tr1 * Li_light) / stepcount;
+        Tr1 = exp(-(St1+St0));
+        Lo += (Tr1 * Li_light * st0 * dt0);
     }
-    Tr0 = exp(-St0/st0_count);
 
-    Lo += Tr0 * Li_sky;
+    Tr0 = exp(-St0);
+    Lo += (Tr0 * Li_sky);
 
     frag_color.xyz = Lo;
-
-    //mix(vec3(Lo), Li_sky, exp(-density));
-
-    //frag_color = vec4(frag_color.x * 1.2, frag_color.x * 0.92, sqrt(2.0) * 0.3, 1.0);
-    //frag_color *= exp(-pow(length((frag_coord / iResolution.xy) - vec2(0.5)), 2.0) / 0.25);
 }
 
