@@ -80,7 +80,7 @@ float sample_noise(vec3 p, float octave)
     //return 1.0 * (1.0-length(p));
     float density = 0.0;
     float max_i = exp2(octave);
-    float bd = 4.0;// + sin(iTime) * 10.0;
+    float bd = 8.0;// + sin(iTime) * 10.0;
     float expo = 1.0;
     float scale = 4.5;
     float offset = +0.315;// + cos(iTime*0.2) * 0.2;
@@ -96,6 +96,9 @@ float sample_noise(vec3 p, float octave)
 
 void imageMain(inout vec4 frag_color, vec2 frag_coord)
 {
+    vec2 uv = frag_coord / iResolution.xy;
+    uv.x *= iResolution.x / iResolution.y;
+
 	float aspect_ratio = iResolution.x / iResolution.y;
 	float fov = 60.0 * 3.1415926536 / 180.0;
 	float near = 0.1;
@@ -115,13 +118,13 @@ void imageMain(inout vec4 frag_color, vec2 frag_coord)
 
     float t0 = x2;
     float t1 = length(ro - i1);
-    float stepcount = 4;
+    float stepcount = 2;
     float dt0 = (t1-t0)/stepcount;
     float t = 0.0;
     float density = 0.0;
     float i;
 
-    vec3 Ld = normalize(vec3(0.0, 0.1, 0.1));//normalize(vec3(0.2 * cos(iTime), 0.2 * sin(iTime), 0.1));
+    vec3 Ld = normalize(vec3(0.2 * cos(iTime), 1.0, 0.2 * sin(iTime)));
 
     vec3 Lo = vec3(0.0);
 
@@ -139,27 +142,9 @@ void imageMain(inout vec4 frag_color, vec2 frag_coord)
         float st0 = sample_noise(p, 2);
         St0 += st0 * dt0;
 
-        // t_max ? length(p + Ld*t) = 1.0 for t
-        // (p+Ld*t).(p+Ld*t) = 1.0
-        // (Px^2 + 2PxLdxt + Ldx^2*t^2) +
-        // (Py^2 + 2PyLdyt + Ldy^2*t^2) +
-        // (Pz^2 + 2PzLdzt + Ldz^2*t^2) = 1.0
         float t_max = 2.0;
-        {
-            vec3 pc = p + dot(Ld, -p) * Ld;
-            float x0 = length(pc);
-            float x1 = 1 - x0*x0;
-            float x2 = length(pc - p) - x1;
-            vec3 i0 = ro + rd*x2;
-            vec3 i1 = i0 + 2.0*(pc - i0);
-            float t0 = x2;
-            float t1 = length(ro - i1);
-            t_max = t1/2.0;
-        }
-
-        //float t_max = 2.0;
-        float st1_count = 16.0;
-        float dt1 = (t_max / st1_count) + 0.05 * hash3(vec3(frag_coord*0.001, 0.0)).x;
+        float st1_count = 64.0;
+        float dt1 = t_max / st1_count;
         float Tr1 = 1.0;
         float St1 = 0.0;
         for (float j = 0.0; j < st1_count; ++j)
