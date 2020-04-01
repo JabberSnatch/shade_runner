@@ -42,14 +42,14 @@ float plot(float x, float y, float r)
 	return top * bot;
 }
 
-float pulse(float time, float bpm, float signature)
+float pulse(float time, float bpm, float signature, float offset = 0.0)
 {
-	return fract((time * bpm) / (60.0 * signature));
+	return fract((time * bpm) / (60.0 * signature) - offset);
 }
 
-float cycle(float time, float bpm, float signature, float release)
+float cycle(float time, float bpm, float signature, float release, float offset = 0.0)
 {
-	float pulse = pulse(time, bpm, signature);
+	float pulse = pulse(time, bpm, signature, offset);
 	return step(pulse, release) * (pulse / release);
 }
 
@@ -59,6 +59,27 @@ float envelope(float t, float attack, float decay, float sustain)
 	float decay_segment = mix(1.0, sustain, (t-attack)/decay) * step(t-attack, decay) * step(attack, t);
 	float sustain_segment = sustain * step(decay, t-attack);
 	return attack_segment + decay_segment + sustain_segment;
+}
+
+float trianglewave(float t)
+{
+    float VA = fract(t);
+    float VB = 1.0-VA;
+    float branch = step(VA, VB);
+    return ((1.0-branch)*VB + branch*VA)*2.0;
+}
+
+float ease(float a, float b, float t)
+{
+	t *= 2.0;
+	if (t < 1) return (b-a)/2.0*t*t*t + a;
+	t -= 2.0;
+	return (b-a)/2.0*(t*t*t + 2.0) + a;
+
+    float t0 = t*t*t*t - 5.0*t*t*t + 5.0*t*t;
+    float omt = 1.0-t;
+    float t1 = -(omt*omt*omt*omt - 5.0*omt*omt*omt + 5.0*omt*omt) + 1.0;
+    return mix(a, b, mix(t0, t1, t));
 }
 
 
@@ -73,8 +94,15 @@ void imageMain(inout vec4 frag_color, vec2 frag_coord)
 
 	float rep = iTime / kBpm;
 	float v = cycle(tx, kBpm, 0.5, 0.9);
-	frag_color.x = plot(uv.y, envelope(v, 0.1, 0.1, 0.5), htn);
-	frag_color.z = plot(uv.y, envelope(cycle(tx, kBpm, 3.0, 0.33333 * 0.5), 0.1, 0.3, 0.7), htn);
-	frag_color.y = dirac(uv.y, tx, kBpm, 1.0);
+	//frag_color.x = plot(uv.y, envelope(v, 0.1, 0.1, 0.5), htn);
+	//frag_color.z = plot(uv.y, envelope(cycle(tx, kBpm, 3.0, 0.33333 * 0.5), 0.1, 0.3, 0.7), htn);
+    //frag_color.z += plot(uv.y, sin(tx*6.0)*0.2 + 0.5, htn);
+    //frag_color.y = plot(uv.y, ease(0.2, 0.5, trianglewave(tx)), htn);
+    frag_color.y = plot(uv.y, cycle(tx, 80.0, 1.0/5.0, 1.0, 0.0), htn);
+
+    float cv = cycle(tx, 80.0, 1.0, 0.2, 0.6) + cycle(tx, 80.0, 1.0, 0.2, 0.0);
+    frag_color.z = plot(uv.y,
+                        ease(0.0, 1.0, envelope(cv, 0.5, 0.2, 0.3)), htn);
+	frag_color.x = dirac(uv.y, tx, 80.0, 1.0);
 	//frag_color.z = plot(uv.y, pulse(tx, .25), htn);
 }
