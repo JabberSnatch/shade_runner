@@ -29,6 +29,7 @@ float AspectRatio(uibase::Vec2i_t const& _screen_size);
 
 std::unique_ptr<oglbase::Framebuffer> MakeGizmoLayerFramebuffer(uibase::Vec2i_t const& _screen_size);
 uibase::Matrix_t MakeGizmoLayerProjection(uibase::Vec2i_t const& _screen_size);
+uibase::Matrix_t MakeCameraMatrix(uibase::Vec3_t const& _p, uibase::Vec3_t const& _t, uibase::Vec3_t const& _u);
 
 } // namespace
 
@@ -48,6 +49,7 @@ LayerMediator::LayerMediator(uibase::Vec2i_t const& _screen_size, unsigned _flag
         sr_layer_->SetResolution(state_.screen_size[0], state_.screen_size[1]);
         sr_layer_->projection_matrix = MakeGizmoLayerProjection(state_.screen_size);
     }
+
     if (_flags & LayerFlag::kGizmo)
     {
         framebuffer_ = MakeGizmoLayerFramebuffer(state_.screen_size);
@@ -73,6 +75,7 @@ LayerMediator::LayerMediator(uibase::Vec2i_t const& _screen_size, unsigned _flag
             );
         }
     }
+
     if (_flags & LayerFlag::kImgui)
     {
         imgui_layer_ = std::make_unique<appbase::ImGuiLayer>();
@@ -122,6 +125,8 @@ LayerMediator::LayerMediator(uibase::Vec2i_t const& _screen_size, unsigned _flag
 
         sr_layer_->gizmo_count = (int)gizmo_layer_->gizmos_.size();
     }
+
+    back_state_ = state_;
 }
 
 void
@@ -335,6 +340,23 @@ LayerMediator::KeyDown(std::uint32_t _key, std::uint32_t _mod, bool _v)
         if (_v && _key >= eKey::kASCIIBegin && _key < eKey::kASCIIEnd)
             io.AddInputCharacter((ImWchar)_key);
     }
+
+    if (state_.key_down['w'])
+    {
+        state_.camera_position[1] += 0.1f;
+    }
+    if (state_.key_down['s'])
+    {
+        state_.camera_position[1] -= 0.1f;
+    }
+    if (state_.key_down['d'])
+    {
+        state_.camera_position[0] += 0.1f;
+    }
+    if (state_.key_down['a'])
+    {
+        state_.camera_position[0] -= 0.1f;
+    }
 }
 
 bool
@@ -346,10 +368,25 @@ LayerMediator::RunFrame()
         framebuffer_->Bind();
 
     if (sr_layer_)
+    {
+        sr_layer_->projection_matrix = uibase::mat4_mul(
+            MakeGizmoLayerProjection(state_.screen_size),
+            MakeCameraMatrix(state_.camera_position,
+                             uibase::Vec3_t{0.f, 0.f, -1.f},
+                             uibase::Vec3_t{0.f, 1.f, 0.f})
+        );
         result = sr_layer_->RenderFrame();
+    }
 
     if (gizmo_layer_)
     {
+        gizmo_layer_->projection_ = uibase::mat4_mul(
+            MakeGizmoLayerProjection(state_.screen_size),
+            MakeCameraMatrix(state_.camera_position,
+                             uibase::Vec3_t{0.f, 0.f, -1.f},
+                             uibase::Vec3_t{0.f, 1.f, 0.f})
+        );
+
         if (state_.enable_gizmos)
             gizmo_layer_->RenderFrame();
         else
@@ -369,6 +406,7 @@ LayerMediator::RunFrame()
     if (imgui_layer_)
         imgui_layer_->RunFrame(state_);
 
+    back_state_ = state_;
     return result;
 }
 
@@ -401,5 +439,17 @@ MakeGizmoLayerProjection(uibase::Vec2i_t const& _screen_size)
     return uibase::perspective(0.01f, 1000.f, 3.1415926534f*0.5f, aspect_ratio);
 }
 
+uibase::Matrix_t
+MakeCameraMatrix(uibase::Vec3_t const& _p, uibase::Vec3_t const& _t, uibase::Vec3_t const& _u)
+{
+    uibase::Vec3_t const f = uibase::vec3_normalise(uibase::vec3_sub(_t, _p));
+    uibase::Vec3_t const r = uibase::vec3_normalise(uibase::vec3_cross(_u, f));
+    uibase::Vec3_t const u = uibase::vec3_cross(f, r);
+
+    return uibase::mat4_col(uibase::Vec4_t{1.f, 0.f, 0.f, 0.f},
+                            uibase::Vec4_t{0.f, 1.f, 0.f, 0.f},
+                            uibase::Vec4_t{0.f, 0.f, 1.f, 0.f},
+                            uibase::vec3_float_concat(uibase::vec3_float_mul(_p, -1.f), 1.f));
+}
 
 } // namespace

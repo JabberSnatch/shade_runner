@@ -459,14 +459,13 @@ RenderContext::RenderFrame()
             glUniform1f(location, uniform.second);
     }
 
-#ifndef SR_GEOMETRY_RENDERING
-    glBindVertexArray(impl_->dummy_vao_);
-    glDrawArrays(GL_TRIANGLES, 0, 3);
-    glBindVertexArray(0u);
-#else
-    // GEOMETRY RENDERING EXPERIMENTS
+#ifdef SR_GEOMETRY_RENDERING
     glBindVertexArray(impl_->vao_);
     glDrawArrays(GL_POINTS, 0, impl_->point_count_);
+    glBindVertexArray(0u);
+#else
+    glBindVertexArray(impl_->dummy_vao_);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
     glBindVertexArray(0u);
 #endif
 

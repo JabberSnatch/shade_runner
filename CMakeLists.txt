@@ -31,7 +31,7 @@ find_package(Boost REQUIRED MODULE
 # ==============================================================================
 find_package(OpenGL REQUIRED)
 # ==============================================================================
-find_package(GLEW CONFIG REQUIRED PATHS ${LIB_DIR})
+find_package(GLEW REQUIRED PATHS ${LIB_DIR})
 # ==============================================================================
 find_package(imgui CONFIG REQUIRED PATHS ${LIB_DIR})
 # ==============================================================================

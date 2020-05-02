@@ -53,13 +53,15 @@ struct State {
     bool mouse_down{ false };
     uibase::Vec2i_t mouse_pos{ -1, -1 };
     std::array<bool, 256> key_down;
+
     std::uint32_t mod_down;
+
+    std::array<eKey, 256> key_map;
 
     bool enable_gizmos = false;
     std::uint32_t hover_gizmo = 0u;
     std::uint32_t select_gizmo = 0u;
-
-    std::array<eKey, 256> key_map;
+    uibase::Vec3_t camera_position{0.f, 0.f, 0.f};
 };
 
 } // namespace appbase

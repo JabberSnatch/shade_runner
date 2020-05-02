@@ -42,6 +42,8 @@ struct LayerMediator
     bool RunFrame();
 
     State state_;
+    State back_state_;
+
     std::unique_ptr<sr::RenderContext> sr_layer_;
     std::unique_ptr<uibase::GizmoLayer> gizmo_layer_;
     std::unique_ptr<appbase::ImGuiLayer> imgui_layer_;
