@@ -6,17 +6,36 @@ option(WARN_VERBOSE "Enable highest warning level and disable warnings as errors
 option(GL_DEBUG_CONTEXT "Create OpenGL debug context" OFF)
 
 set(SOURCE_DIR sources/src)
-set(LIB_DIR lib)
+set(LIB_DIR ${CMAKE_CURRENT_LIST_DIR}/../lib)
 
 # ==============================================================================
-include(cmake/external/boost.cmake)
+# Boost should be built using the "tagged" naming convention
+set(BOOST_ROOT
+    "${LIB_DIR}/boost"
+    CACHE
+    PATH
+    "Boost root installation"
+)
+set(Boost_ARCHITECTURE "-x64")
+set(Boost_USE_STATIC_LIBS ON)
+set(Boost_USE_DEBUG_LIBS ON)
+set(Boost_USE_RELEASE_LIBS ON)
+set(Boost_USE_MULTITHREADED ON)
+unset(Boost_USE_STATIC_RUNTIME)
+set(Boost_NO_BOOST_CMAKE ON)
+unset(Boost_USE_STATIC_RUNTIME CACHE)
+find_package(Boost REQUIRED MODULE
+    COMPONENTS
+        filesystem
+)
 # ==============================================================================
 find_package(OpenGL REQUIRED)
 # ==============================================================================
-include(cmake/external/glew.cmake)
+find_package(GLEW CONFIG REQUIRED PATHS ${LIB_DIR})
 # ==============================================================================
-include(cmake/external/imgui.cmake)
+find_package(imgui CONFIG REQUIRED PATHS ${LIB_DIR})
 # ==============================================================================
+
 
 set(UTILITY_DIR ${SOURCE_DIR}/utility)
 set( UTILITY_SOURCES
@@ -69,7 +88,6 @@ function(_COMMON_PROJECT_OPTIONS TARGET_NAME)
 	)
 	target_link_libraries(${TARGET_NAME}
 		PRIVATE
-			Boost::boost
 			Boost::filesystem
 	)
 
