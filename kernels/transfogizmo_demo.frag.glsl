@@ -121,7 +121,8 @@ void imageMain(inout vec4 frag_color, vec2 frag_coord)
 	vec2 clip_coord = ((frag_coord / iResolution) - 0.5) * 2.0;
     vec3 ray = compute_ray_matrix(inverse(iProjMat), clip_coord);
 
-	vec3 position = vec3(0.0, 0.0, 0.0);
+    vec4 origin = inverse(iProjMat) * vec4(0.0, 0.0, -1.0, 1.0);
+	vec3 position = origin.xyz / origin.w;
 	float rm_dist = scene(position);
 
 	for (int rm_step = 0; rm_step < kMaxStep; rm_step++)
