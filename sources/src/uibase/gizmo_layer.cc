@@ -65,7 +65,7 @@ GizmoProgram::GizmoProgram(oglbase::ShaderSources_t const& _geom_sources) :
 }
 
 void
-GizmoProgram::Draw(GizmoDesc const &_desc, unsigned _id, Matrix_t const& _projection) const
+GizmoProgram::Draw(GizmoDesc const &_desc, unsigned _id, Mat4_t const& _projection) const
 {
     glUseProgram(shader_program_);
     {
@@ -98,7 +98,7 @@ GizmoProgram::Draw(GizmoDesc const &_desc, unsigned _id, Matrix_t const& _projec
 }
 
 
-GizmoLayer::GizmoLayer(Matrix_t const& _projection) :
+GizmoLayer::GizmoLayer(Mat4_t const& _projection) :
     projection_{ _projection },
     gizmos_{},
     box_program_{ kBoxGeom },

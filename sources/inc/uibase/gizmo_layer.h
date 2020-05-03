@@ -45,7 +45,7 @@ struct GizmoProgram
 {
     GizmoProgram(oglbase::ShaderSources_t const& _geom_sources);
 
-    void Draw(GizmoDesc const &_desc, unsigned _id, Matrix_t const& _projection) const;
+    void Draw(GizmoDesc const &_desc, unsigned _id, Mat4_t const& _projection) const;
 
     oglbase::ProgramPtr shader_program_;
     oglbase::VAOPtr dummy_vao_;
@@ -53,7 +53,7 @@ struct GizmoProgram
 
 struct GizmoLayer
 {
-    GizmoLayer(Matrix_t const& _projection);
+    GizmoLayer(Mat4_t const& _projection);
 
     void ClearIDBuffer() const;
     void RenderFrame() const;
@@ -62,7 +62,7 @@ struct GizmoLayer
     utility::Callback<GizmoDesc const&> Gizmos_onMove;
     std::vector<GizmoDesc> gizmos_;
 
-    Matrix_t projection_;
+    Mat4_t projection_;
     GizmoProgram box_program_;
     GizmoProgram transfo_program_;
 };

@@ -25,7 +25,7 @@ namespace sr {
 using UniformContainer = std::vector<std::pair<std::string, float>>;
 using ErrorLogContainer = std::vector<std::pair<int, std::string>>;
 
-using Matrix_t = std::array<float, 16>;
+using Mat4_t = std::array<float, 16>;
 using Vec3_t = std::array<float, 3>;
 
 class RenderContext
@@ -47,10 +47,10 @@ public:
 
     utility::Callback<std::string const&, ErrorLogContainer const&> onFKernelCompileFinished;
 
-    Matrix_t projection_matrix{ 1.f, 0.f, 0.f, 0.f,
-                                0.f, 1.f, 0.f, 0.f,
-                                0.f, 0.f, 1.f, 0.f,
-                                0.f, 0.f, 0.f, 1.f };
+    Mat4_t projection_matrix{ 1.f, 0.f, 0.f, 0.f,
+                              0.f, 1.f, 0.f, 0.f,
+                              0.f, 0.f, 1.f, 0.f,
+                              0.f, 0.f, 0.f, 1.f };
     int gizmo_count = 0;
     Vec3_t gizmo_positions[kGizmoCountMax];
 

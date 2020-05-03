@@ -66,7 +66,7 @@ DefaultKernel(ShaderStage _stage)
 	case ShaderStage::kFragment:
 	{
 		static oglbase::ShaderSources_t const kDefaultKernel{
-			"void " SR_FRAG_ENTRY_POINT "(inout vec4 frag_color, vec2 frag_coord) { frag_color = vec4(0.7, 0.8, 0.4, 1.0) * (1.0-float(gl_PrimitiveID)) * 0.5 } \n"
+			"void " SR_FRAG_ENTRY_POINT "(inout vec4 frag_color, vec2 frag_coord) { frag_color = vec4(0.7, 0.8, 0.4, 1.0) * (1.0-float(gl_PrimitiveID)) * 0.5; } \n"
 		};
 		return kDefaultKernel;
 	}

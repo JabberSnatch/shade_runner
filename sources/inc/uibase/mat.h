@@ -21,13 +21,13 @@ using Vec4_t = std::array<float, 4>;
 using Vec3_t = std::array<float, 3>;
 using Vec2_t = std::array<float, 2>;
 using Vec2i_t = std::array<int, 2>;
-using Matrix_t = std::array<float, 16>;
+using Mat4_t = std::array<float, 16>;
 
-inline Matrix_t perspective(float n, float f, float alpha, float how)
+inline Mat4_t perspective(float n, float f, float alpha, float how)
 {
     const float inv_tan_half_alpha = 1.f / std::tan(alpha * .5f);
     const float inv_fmn = 1.f / (f-n);
-    return Matrix_t{
+    return Mat4_t{
         inv_tan_half_alpha, 0.f, 0.f, 0.f,
         0.f, (1.f/how)*inv_tan_half_alpha, 0.f, 0.f,
         0.f, 0.f, (-(f+n))*inv_fmn, -1.f,
@@ -68,10 +68,10 @@ vec3_dot(Vec3_t const& _lhs, Vec3_t const& _rhs) {
 inline Vec3_t
 vec3_cross(Vec3_t const& _lhs, Vec3_t const& _rhs) {
     return Vec3_t{
-        _lhs[2]*_rhs[3] - _lhs[3]*_rhs[2],
-        _lhs[3]*_rhs[0] - _lhs[0]*_rhs[3],
+        _lhs[1]*_rhs[2] - _lhs[2]*_rhs[1],
+        _lhs[2]*_rhs[0] - _lhs[0]*_rhs[2],
         _lhs[0]*_rhs[1] - _lhs[1]*_rhs[0]
-            };
+    };
 }
 
 inline Vec3_t
@@ -96,10 +96,10 @@ vec4_dot(Vec4_t const& _lhs, Vec4_t const& _rhs)
     return _lhs[0]*_rhs[0] + _lhs[1]*_rhs[1] + _lhs[2]*_rhs[2] + _lhs[3]*_rhs[3];
 }
 
-inline Matrix_t
+inline Mat4_t
 mat4_col(Vec4_t const& _c0, Vec4_t const& _c1, Vec4_t const& _c2, Vec4_t const& _c3)
 {
-    return Matrix_t{
+    return Mat4_t{
         _c0[0], _c0[1], _c0[2], _c0[3],
         _c1[0], _c1[1], _c1[2], _c1[3],
         _c2[0], _c2[1], _c2[2], _c2[3],
@@ -108,7 +108,7 @@ mat4_col(Vec4_t const& _c0, Vec4_t const& _c1, Vec4_t const& _c2, Vec4_t const& 
 }
 
 inline Vec4_t
-mat4_vec4_mul(Matrix_t const& _lhs, Vec4_t const& _rhs)
+mat4_vec4_mul(Mat4_t const& _lhs, Vec4_t const& _rhs)
 {
     return Vec4_t{
         _lhs[0]*_rhs[0] + _lhs[4]*_rhs[1] + _lhs[8]*_rhs[2] + _lhs[12]*_rhs[3],
@@ -118,10 +118,10 @@ mat4_vec4_mul(Matrix_t const& _lhs, Vec4_t const& _rhs)
     };
 }
 
-inline Matrix_t
-mat4_transpose(Matrix_t const& _op)
+inline Mat4_t
+mat4_transpose(Mat4_t const& _op)
 {
-    return Matrix_t{
+    return Mat4_t{
         _op[0], _op[4], _op[8], _op[12],
         _op[1], _op[5], _op[9], _op[13],
         _op[2], _op[6], _op[10], _op[14],
@@ -129,10 +129,10 @@ mat4_transpose(Matrix_t const& _op)
     };
 }
 
-inline Matrix_t
-mat4_mul(Matrix_t const& _lhs, Matrix_t const& _rhs)
+inline Mat4_t
+mat4_mul(Mat4_t const& _lhs, Mat4_t const& _rhs)
 {
-    Matrix_t const lt = mat4_transpose(_lhs);
+    Mat4_t const lt = mat4_transpose(_lhs);
     Vec4_t const& _lc0 = *(Vec4_t*)&lt;
     Vec4_t const& _lc1 = *(((Vec4_t*)&lt) + 1);
     Vec4_t const& _lc2 = *(((Vec4_t*)&lt) + 2);

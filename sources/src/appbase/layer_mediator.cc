@@ -28,8 +28,8 @@ static uibase::Vec3_t const kGizmoColorOn{ 1.f, 0.f, 0.f };
 float AspectRatio(uibase::Vec2i_t const& _screen_size);
 
 std::unique_ptr<oglbase::Framebuffer> MakeGizmoLayerFramebuffer(uibase::Vec2i_t const& _screen_size);
-uibase::Matrix_t MakeGizmoLayerProjection(uibase::Vec2i_t const& _screen_size);
-uibase::Matrix_t MakeCameraMatrix(uibase::Vec3_t const& _p, uibase::Vec3_t const& _t, uibase::Vec3_t const& _u);
+uibase::Mat4_t MakeGizmoLayerProjection(uibase::Vec2i_t const& _screen_size);
+uibase::Mat4_t MakeCameraMatrix(uibase::Vec3_t const& _p, uibase::Vec3_t const& _t, uibase::Vec3_t const& _u);
 
 } // namespace
 
@@ -372,7 +372,7 @@ LayerMediator::RunFrame()
         sr_layer_->projection_matrix = uibase::mat4_mul(
             MakeGizmoLayerProjection(state_.screen_size),
             MakeCameraMatrix(state_.camera_position,
-                             uibase::Vec3_t{0.f, 0.f, -1.f},
+                             uibase::Vec3_t{0.f, 0.f, -3.f},
                              uibase::Vec3_t{0.f, 1.f, 0.f})
         );
         result = sr_layer_->RenderFrame();
@@ -383,7 +383,7 @@ LayerMediator::RunFrame()
         gizmo_layer_->projection_ = uibase::mat4_mul(
             MakeGizmoLayerProjection(state_.screen_size),
             MakeCameraMatrix(state_.camera_position,
-                             uibase::Vec3_t{0.f, 0.f, -1.f},
+                             uibase::Vec3_t{0.f, 0.f, -3.f},
                              uibase::Vec3_t{0.f, 1.f, 0.f})
         );
 
@@ -432,24 +432,27 @@ MakeGizmoLayerFramebuffer(uibase::Vec2i_t const& _screen_size)
     );
 }
 
-uibase::Matrix_t
+uibase::Mat4_t
 MakeGizmoLayerProjection(uibase::Vec2i_t const& _screen_size)
 {
     float aspect_ratio = AspectRatio(_screen_size);
     return uibase::perspective(0.01f, 1000.f, 3.1415926534f*0.5f, aspect_ratio);
 }
 
-uibase::Matrix_t
+uibase::Mat4_t
 MakeCameraMatrix(uibase::Vec3_t const& _p, uibase::Vec3_t const& _t, uibase::Vec3_t const& _u)
 {
-    uibase::Vec3_t const f = uibase::vec3_normalise(uibase::vec3_sub(_t, _p));
+    uibase::Vec3_t const f = uibase::vec3_normalise(uibase::vec3_sub(_p, _t));
     uibase::Vec3_t const r = uibase::vec3_normalise(uibase::vec3_cross(_u, f));
     uibase::Vec3_t const u = uibase::vec3_cross(f, r);
 
-    return uibase::mat4_col(uibase::Vec4_t{1.f, 0.f, 0.f, 0.f},
-                            uibase::Vec4_t{0.f, 1.f, 0.f, 0.f},
-                            uibase::Vec4_t{0.f, 0.f, 1.f, 0.f},
-                            uibase::vec3_float_concat(uibase::vec3_float_mul(_p, -1.f), 1.f));
+    uibase::Vec3_t const p = uibase::vec3_float_mul(_p, -1.f);
+    uibase::Vec3_t const t{ uibase::vec3_dot(p, r), uibase::vec3_dot(p, u), uibase::vec3_dot(p, f) };
+
+    return uibase::mat4_col(uibase::Vec4_t{r[0], u[0], f[0], 0.f},
+                            uibase::Vec4_t{r[1], u[1], f[1], 0.f},
+                            uibase::Vec4_t{r[2], u[2], f[2], 0.f},
+                            uibase::vec3_float_concat(t, 1.f));
 }
 
 } // namespace
