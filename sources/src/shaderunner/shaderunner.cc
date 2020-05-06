@@ -525,3 +525,34 @@ RenderContext::GetKernelPath(ShaderStage _stage) const
 
 
 } //namespace sr
+
+extern "C"
+{
+
+    void* srCreateContext()
+    {
+        return new sr::RenderContext();
+    }
+
+    void srDeleteContext(void* context)
+    {
+        delete (sr::RenderContext*)context;
+    }
+
+    bool srRenderFrame(void* context, FrameDesc const* desc)
+    {
+        return ((sr::RenderContext*)context)->RenderFrame();
+    }
+
+    void srWatchKernelFile(void* context, std::uint32_t stage, char const* path)
+    {
+        ((sr::RenderContext*)context)->WatchKernelFile((sr::ShaderStage)stage, path);
+    }
+
+    char const* srGetKernelPath(void* context, std::uint32_t stage)
+    {
+        return ((sr::RenderContext*)context)->GetKernelPath((sr::ShaderStage)stage).c_str();
+    }
+
+}
+

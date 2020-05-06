@@ -61,4 +61,29 @@ private:
 
 } // namespace sr
 
+extern "C"
+{
+
+    typedef void* hContext;
+    struct FrameDesc
+    {
+        float res[2];
+
+        char const** unames;
+        float* uvalues;
+        int ucount;
+
+        float projection_matrix[16];
+        int gizmo_count;
+        float gizmo_positions[3*16];
+    };
+
+    void* srCreateContext();
+    void srDeleteContext(void* context);
+    bool srRenderFrame(void* context, FrameDesc const* desc);
+    void srWatchKernelFile(void* context, std::uint32_t stage, char const* path);
+    char const* srGetKernelPath(void* context, std::uint32_t stage);
+
+}
+
 #endif // __YS_SHADERUNNER_HPP__

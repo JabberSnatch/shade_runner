@@ -17,7 +17,7 @@ set(BOOST_ROOT
     "Boost root installation"
 )
 set(Boost_ARCHITECTURE "-x64")
-set(Boost_USE_STATIC_LIBS ON)
+set(Boost_USE_STATIC_LIBS OFF)
 set(Boost_USE_DEBUG_LIBS ON)
 set(Boost_USE_RELEASE_LIBS ON)
 set(Boost_USE_MULTITHREADED ON)
@@ -28,14 +28,11 @@ find_package(Boost REQUIRED MODULE
     COMPONENTS
         filesystem
 )
-# ==============================================================================
+
 find_package(OpenGL REQUIRED)
-# ==============================================================================
 find_package(GLEW REQUIRED PATHS ${LIB_DIR})
-# ==============================================================================
 find_package(imgui CONFIG REQUIRED PATHS ${LIB_DIR})
 # ==============================================================================
-
 
 set(UTILITY_DIR ${SOURCE_DIR}/utility)
 set( UTILITY_SOURCES
@@ -81,6 +78,29 @@ set( XLIB_BOOTSTRAP_SOURCES
 
 # ==============================================================================
 
+
+	if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
+	  add_compile_options(-std:c++latest)
+	  add_compile_definitions(_SCL_SECURE_NO_WARNINGS)
+
+	  if (WARN_VERBOSE)
+		add_compile_options(-Wall)
+	  else()
+		add_compile_options(-W4 -WX)
+	  endif(WARN_VERBOSE)
+	elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR
+		   "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+	  add_compile_options(-std=c++17)
+
+	  if (WARN_VERBOSE)
+		add_compile_options(-Weverything)
+	  else()
+		add_compile_options(-Werror)
+	  endif(WARN_VERBOSE)
+	  else()
+	  message("${CMAKE_CXX_COMPILER_ID}")
+	endif()
+
 function(_COMMON_PROJECT_OPTIONS TARGET_NAME)
 	target_include_directories(${TARGET_NAME}
 		PRIVATE
@@ -93,25 +113,6 @@ function(_COMMON_PROJECT_OPTIONS TARGET_NAME)
 
 	if(${GL_DEBUG_CONTEXT})
 	  add_compile_definitions(SR_GL_DEBUG_CONTEXT)
-	endif()
-
-	if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
-	  add_compile_options(-std:c++latest)
-	  add_compile_definitions(_SCL_SECURE_NO_WARNINGS)
-
-	  if (WARN_VERBOSE)
-		add_compile_options(-Wall)
-	  else()
-		add_compile_options(-W4 -WX)
-	  endif(WARN_VERBOSE)
-	elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-	  add_compile_options(-std=c++17)
-
-	  if (WARN_VERBOSE)
-		add_compile_options(-Weverything)
-	  else()
-		add_compile_options(-Werror)
-	  endif(WARN_VERBOSE)
 	endif()
 
 endfunction()
@@ -152,6 +153,17 @@ target_link_libraries(shaderunner
 )
 _common_project_options(shaderunner)
 
+
+add_library(utl SHARED ${UTILITY_SOURCES})
+_common_project_options(utl)
+add_library(ogb SHARED ${OGLBASE_SOURCES})
+target_link_libraries(ogb PUBLIC OpenGL::GL GLEW::GLEW)
+_common_project_options(ogb)
+
+add_library(sr MODULE ${SHADERUNNER_SOURCES})
+target_link_libraries(sr PRIVATE utl ogb)
+_common_project_options(sr)
+
 # ______________________________________________________________________________
 
 add_library(appbase STATIC ${APPBASE_SOURCES})
@@ -166,6 +178,7 @@ _common_project_options(appbase)
 
 # ______________________________________________________________________________
 
+if (WIN32)
 add_executable(win32_bootstrap WIN32 ${WIN32_BOOTSTRAP_SOURCES})
 target_link_libraries(win32_bootstrap
 	PRIVATE
@@ -192,14 +205,15 @@ add_custom_command(
 
 install(TARGETS win32_bootstrap
 	DESTINATION
-		"${CMAKE_CURRENT_BINARY_DIR}"
+		"${CMAKE_CURRENT_BINARY_DIR}/install"
 )
 
 install(FILES
 	"${GLEW_DSO_PATH}"
 	DESTINATION
-		"${CMAKE_CURRENT_BINARY_DIR}"
+		"${CMAKE_CURRENT_BINARY_DIR}/install"
 )
+endif()
 
 # ______________________________________________________________________________
 
@@ -208,8 +222,27 @@ target_link_libraries(xlib_bootstrap
     PRIVATE
 		X11
 		appbase
+		bass::bass
 )
 _common_project_options(xlib_bootstrap)
+
+install(TARGETS xlib_bootstrap DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/install")
+
+get_target_property(BASS_DSO_PATH
+	bass::bass
+	IMPORTED_LOCATION
+)
+
+add_custom_command(
+	TARGET xlib_bootstrap
+	POST_BUILD
+	COMMAND
+		${CMAKE_COMMAND} -E copy_if_different
+			"${BASS_DSO_PATH}"
+			$<TARGET_FILE_DIR:xlib_bootstrap>
+)
+
+install(FILES "${BASS_DSO_PATH}" DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/install")
 
 # ==============================================================================
 set(CPACK_PACKAGE_NAME "Shade Runner")
