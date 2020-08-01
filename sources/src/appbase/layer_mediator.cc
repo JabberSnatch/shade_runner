@@ -340,29 +340,69 @@ LayerMediator::KeyDown(std::uint32_t _key, std::uint32_t _mod, bool _v)
         if (_v && _key >= eKey::kASCIIBegin && _key < eKey::kASCIIEnd)
             io.AddInputCharacter((ImWchar)_key);
     }
-
-    if (state_.key_down['w'])
-    {
-        state_.camera_position[1] += 0.1f;
-    }
-    if (state_.key_down['s'])
-    {
-        state_.camera_position[1] -= 0.1f;
-    }
-    if (state_.key_down['d'])
-    {
-        state_.camera_position[0] += 0.1f;
-    }
-    if (state_.key_down['a'])
-    {
-        state_.camera_position[0] -= 0.1f;
-    }
 }
 
 bool
-LayerMediator::RunFrame()
+LayerMediator::RunFrame(float _dt)
 {
     bool result = false;
+
+    static constexpr float kCameraAngleSpeed = 25.f;
+    if (state_.key_down[appbase::kUp])
+        state_.camera_rotation[0] += kCameraAngleSpeed * _dt;
+    if (state_.key_down[appbase::kDown])
+        state_.camera_rotation[0] -= kCameraAngleSpeed * _dt;
+    if (state_.key_down[appbase::kLeft])
+        state_.camera_rotation[1] += kCameraAngleSpeed * _dt;
+    if (state_.key_down[appbase::kRight])
+        state_.camera_rotation[1] -= kCameraAngleSpeed * _dt;
+
+    if (state_.camera_rotation[0] > 360.f)
+        state_.camera_rotation[0] -= 360.f;
+    if (state_.camera_rotation[0] < 0.f)
+        state_.camera_rotation[0] += 360.f;
+    if (state_.camera_rotation[1] > 360.f)
+        state_.camera_rotation[1] -= 360.f;
+    if (state_.camera_rotation[1] < 0.f)
+        state_.camera_rotation[1] += 360.f;
+
+    float camspeed = 1.f;
+    if (state_.mod_down & appbase::kShift)
+        camspeed *= 100.f;
+    uibase::Vec3_t t{ 0.f, 0.f, 0.f };
+    if (state_.key_down['w'])
+        t[2] -= camspeed * _dt;
+    if (state_.key_down['s'])
+        t[2] += camspeed * _dt;
+    if (state_.key_down['d'])
+        t[0] += camspeed * _dt;
+    if (state_.key_down['a'])
+        t[0] -= camspeed * _dt;
+    if (state_.key_down['q'])
+        t[1] += camspeed * _dt;
+    if (state_.key_down['e'])
+        t[1] -= camspeed * _dt;
+
+    uibase::Mat4_t camrot = uibase::mat4_rot(state_.camera_rotation);
+    uibase::Vec3_t lt = uibase::vec3_from_vec4(
+        uibase::mat4_vec4_mul(camrot, uibase::vec4_from_vec3(t, 0.f)));
+
+    state_.camera_position = uibase::vec3_add(lt, state_.camera_position);
+
+    uibase::Vec3_t camforward = uibase::vec3_from_vec4(
+        uibase::mat4_vec4_mul(
+            camrot,
+            uibase::Vec4_t{0.f, 0.f, -1.f, 0.f})
+    );
+    uibase::Vec3_t camup = uibase::vec3_from_vec4(
+        uibase::mat4_vec4_mul(
+            camrot,
+            uibase::Vec4_t{0.f, 1.f, 0.f, 0.f})
+    );
+    uibase::Vec3_t camtarget = uibase::vec3_add(state_.camera_position, camforward);
+    uibase::Mat4_t cammat = MakeCameraMatrix(state_.camera_position,
+                                             camtarget,
+                                             camup);
 
     if (gizmo_layer_)
         framebuffer_->Bind();
@@ -371,9 +411,7 @@ LayerMediator::RunFrame()
     {
         sr_layer_->projection_matrix = uibase::mat4_mul(
             MakeGizmoLayerProjection(state_.screen_size),
-            MakeCameraMatrix(state_.camera_position,
-                             uibase::Vec3_t{0.f, 0.f, -3.f},
-                             uibase::Vec3_t{0.f, 1.f, 0.f})
+            cammat
         );
         result = sr_layer_->RenderFrame();
     }
@@ -382,9 +420,7 @@ LayerMediator::RunFrame()
     {
         gizmo_layer_->projection_ = uibase::mat4_mul(
             MakeGizmoLayerProjection(state_.screen_size),
-            MakeCameraMatrix(state_.camera_position,
-                             uibase::Vec3_t{0.f, 0.f, -3.f},
-                             uibase::Vec3_t{0.f, 1.f, 0.f})
+            cammat
         );
 
         if (state_.enable_gizmos)

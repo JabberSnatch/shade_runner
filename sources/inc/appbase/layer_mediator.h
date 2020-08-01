@@ -39,7 +39,7 @@ struct LayerMediator
     void MouseDown(bool _v);
     void MousePos(uibase::Vec2i_t const& _pos);
     void KeyDown(std::uint32_t _key, std::uint32_t _mod, bool _v);
-    bool RunFrame();
+    bool RunFrame(float _dt);
 
     State state_;
     State back_state_;

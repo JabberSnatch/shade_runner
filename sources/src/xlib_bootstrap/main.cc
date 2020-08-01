@@ -290,6 +290,7 @@ int main(int __argc, char* __argv[])
     glXMakeCurrent(display, window, glx_context);
     int i = 0;
     float frame_time = 0.f;
+    float last_frame_time = 0.f;
     for(bool run = true; run;)
     {
         auto start = StdClock::now();
@@ -331,7 +332,7 @@ int main(int __argc, char* __argv[])
                     char kc = '\0';
                     KeySym ks;
                     XLookupString(&xkevent, &kc, 1, &ks, nullptr);
-                    if ((unsigned)ks & 0xff00 == 0xff00)
+                    if (((unsigned)ks & 0xff00) == 0xff00)
                         layer_mediator->KeyDown((std::uint32_t)ks, km, (xevent.type == KeyPress));
                     else
                         layer_mediator->KeyDown((std::uint32_t)kc, km, (xevent.type == KeyPress));
@@ -362,12 +363,14 @@ int main(int __argc, char* __argv[])
         }
         if (!run) break;
 
-        if (!layer_mediator->RunFrame()) break;
+        if (!layer_mediator->RunFrame(last_frame_time)) break;
 
         glXSwapBuffers(display, window);
 
         auto end = StdClock::now();
-        frame_time += static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(end-start).count());
+        float measured_time = static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(end-start).count());
+        frame_time += measured_time;
+        last_frame_time = measured_time / 1000.f;
         static int const kFrameInterval = 0xff;
         i = (i + 1) & kFrameInterval;
         if (!i)

@@ -41,6 +41,11 @@ vec2i_sub(Vec2i_t const& _lhs, Vec2i_t const&_rhs) {
 }
 
 inline Vec3_t
+vec3_from_vec4(Vec4_t const& _o) {
+    return Vec3_t{ _o[0], _o[1], _o[2] };
+}
+
+inline Vec3_t
 vec3_sub(Vec3_t const& _lhs, Vec3_t const& _rhs) {
     return Vec3_t{ _lhs[0]-_rhs[0], _lhs[1]-_rhs[1], _lhs[2]-_rhs[2] };
 }
@@ -88,6 +93,11 @@ vec3_float_concat(Vec3_t const& _lhs, float const& _rhs)
 inline Vec2_t
 vec2_itof(Vec2i_t const& _in) {
     return Vec2_t{ (float)_in[0], (float)_in[1] };
+}
+
+inline Vec4_t
+vec4_from_vec3(Vec3_t const& _lhs, float _rhs) {
+    return Vec4_t{ _lhs[0], _lhs[1], _lhs[2], _rhs };
 }
 
 inline float
@@ -149,6 +159,33 @@ mat4_mul(Mat4_t const& _lhs, Mat4_t const& _rhs)
         Vec4_t{vec4_dot(_lc0, _rc2), vec4_dot(_lc1, _rc2), vec4_dot(_lc2, _rc2), vec4_dot(_lc3, _rc2)},
         Vec4_t{vec4_dot(_lc0, _rc3), vec4_dot(_lc1, _rc3), vec4_dot(_lc2, _rc3), vec4_dot(_lc3, _rc3)}
     );
+}
+
+inline Mat4_t
+mat4_rot(Vec3_t const& _eulerDeg)
+{
+    Vec3_t er = vec3_float_mul(_eulerDeg, 3.1415926536f/180.f);
+
+    Mat4_t x{
+        1.f, 0.f, 0.f, 0.f,
+        0.f, std::cos(er[0]), std::sin(er[0]), 0.f,
+        0.f, -std::sin(er[0]), std::cos(er[0]), 0.f,
+        0.f, 0.f, 0.f, 1.f
+    };
+    Mat4_t y{
+        std::cos(er[1]), 0.f, -std::sin(er[1]), 0.f,
+        0.f, 1.f, 0.f, 0.f,
+        std::sin(er[1]), 0.f, std::cos(er[1]), 0.f,
+        0.f, 0.f, 0.f, 1.f
+    };
+    Mat4_t z{
+        std::cos(er[2]), std::sin(er[2]), 0.f, 0.f,
+        -std::sin(er[2]), std::cos(er[2]), 0.f, 0.f,
+        0.f, 0.f, 1.f, 0.f,
+        0.f, 0.f, 0.f, 1.f
+    };
+
+    return mat4_mul(y, mat4_mul(x, z));
 }
 
 } // namespace uibase

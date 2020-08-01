@@ -61,7 +61,9 @@ struct State {
     bool enable_gizmos = false;
     std::uint32_t hover_gizmo = 0u;
     std::uint32_t select_gizmo = 0u;
+
     uibase::Vec3_t camera_position{0.f, 0.f, 0.f};
+    uibase::Vec3_t camera_rotation{0.f, 0.f, 0.f};
 };
 
 } // namespace appbase
