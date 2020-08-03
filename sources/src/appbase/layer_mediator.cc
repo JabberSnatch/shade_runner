@@ -200,12 +200,80 @@ LayerMediator::MouseDown(bool _v)
 }
 
 void
+LayerMediator::MouseDelta(uibase::Vec2i_t const& _delta)
+{
+    state_.mouse_delta = _delta;
+
+    if (gizmo_layer_)
+    {
+        if (state_.select_gizmo)
+        {
+            uibase::GizmoDesc& gizmo = gizmo_layer_->GetGizmo(state_.select_gizmo);
+
+            if (gizmo.type_ == uibase::eGizmoType::kTransform)
+            {
+                std::uint32_t const subgizmo_index = uibase::UnpackSubgizmoIndex(state_.select_gizmo);
+                std::cout << "move transfo" << std::endl;
+                std::cout << "delta " << state_.mouse_delta[0] << " " << state_.mouse_delta[1] << std::endl;
+
+                uibase::Vec2_t const deltaf = uibase::vec2_itof(state_.mouse_delta);
+                uibase::Vec3_t selected_axis{ 0.f, 0.f, 0.f };
+                selected_axis[subgizmo_index] = 1.f;
+
+                uibase::Vec4_t const WS_gizmo_position{
+                    gizmo.position_[0],
+                    gizmo.position_[1],
+                    gizmo.position_[2],
+                    1.f };
+                uibase::Vec4_t CS_gizmo_position =
+                    uibase::mat4_vec4_mul(sr_layer_->projection_matrix, WS_gizmo_position);
+                CS_gizmo_position[0] /= CS_gizmo_position[3];
+                CS_gizmo_position[1] /= CS_gizmo_position[3];
+                CS_gizmo_position[2] /= CS_gizmo_position[3];
+
+                uibase::Vec4_t const WS_axis_offset{
+                    gizmo.position_[0] + selected_axis[0],
+                    gizmo.position_[1] + selected_axis[1],
+                    gizmo.position_[2] + selected_axis[2],
+                    1.f };
+                uibase::Vec4_t CS_axis_offset =
+                    uibase::mat4_vec4_mul(sr_layer_->projection_matrix, WS_axis_offset);
+                CS_axis_offset[0] /= CS_axis_offset[3];
+                CS_axis_offset[1] /= CS_axis_offset[3];
+                CS_axis_offset[2] /= CS_axis_offset[3];
+
+                uibase::Vec3_t CS_axis_direction = uibase::vec3_sub(*(uibase::Vec3_t*)(&CS_axis_offset),
+                                                                    *(uibase::Vec3_t*)(&CS_gizmo_position));
+
+                CS_axis_direction[1] *= AspectRatio(state_.screen_size);
+
+                uibase::Vec3_t const result = uibase::vec3_add(
+                    gizmo.position_,
+                    uibase::vec3_float_mul(
+                        uibase::vec3_add(
+                            uibase::vec3_float_mul(selected_axis, CS_axis_direction[0]*deltaf[0]),
+                            uibase::vec3_float_mul(selected_axis, CS_axis_direction[1]*deltaf[1])),
+                        0.1f));
+
+                std::memcpy(&gizmo.position_[0], &result[0], 3*sizeof(float));
+
+                std::uint32_t const gizmo_index = uibase::UnpackGizmoIndex(state_.select_gizmo);
+                if (gizmo_index < sr_layer_->kGizmoCountMax)
+                    std::memcpy(&(sr_layer_->gizmo_positions[gizmo_index-1]),
+                                &gizmo.position_[0],
+                                sizeof(float)*3);
+            }
+        }
+    }
+}
+
+void
 LayerMediator::MousePos(uibase::Vec2i_t const& _pos)
 {
     if (state_.mouse_pos[0] == _pos[0] && state_.mouse_pos[1] == _pos[1])
         return;
 
-    const uibase::Vec2i_t delta = uibase::vec2i_sub(_pos, state_.mouse_pos);
+    uibase::Vec2i_t const& delta = state_.mouse_delta;
     state_.mouse_pos = _pos;
 
     if (gizmo_layer_)
@@ -258,65 +326,6 @@ LayerMediator::MousePos(uibase::Vec2i_t const& _pos)
                 }
             }
         }
-
-        if (state_.select_gizmo)
-        {
-            uibase::GizmoDesc& gizmo = gizmo_layer_->GetGizmo(state_.select_gizmo);
-
-            if (gizmo.type_ == uibase::eGizmoType::kTransform)
-            {
-                std::uint32_t const subgizmo_index = uibase::UnpackSubgizmoIndex(state_.select_gizmo);
-                std::cout << "move transfo" << std::endl;
-                std::cout << "delta " << delta[0] << " " << delta[1] << std::endl;
-
-                uibase::Vec2_t const deltaf = uibase::vec2_itof(delta);
-                uibase::Vec3_t selected_axis{ 0.f, 0.f, 0.f };
-                selected_axis[subgizmo_index] = 1.f;
-
-                uibase::Vec4_t const WS_gizmo_position{
-                    gizmo.position_[0],
-                    gizmo.position_[1],
-                    gizmo.position_[2],
-                    1.f };
-                uibase::Vec4_t CS_gizmo_position =
-                    uibase::mat4_vec4_mul(sr_layer_->projection_matrix, WS_gizmo_position);
-                CS_gizmo_position[0] /= CS_gizmo_position[3];
-                CS_gizmo_position[1] /= CS_gizmo_position[3];
-                CS_gizmo_position[2] /= CS_gizmo_position[3];
-
-                uibase::Vec4_t const WS_axis_offset{
-                    gizmo.position_[0] + selected_axis[0],
-                    gizmo.position_[1] + selected_axis[1],
-                    gizmo.position_[2] + selected_axis[2],
-                    1.f };
-                uibase::Vec4_t CS_axis_offset =
-                    uibase::mat4_vec4_mul(sr_layer_->projection_matrix, WS_axis_offset);
-                CS_axis_offset[0] /= CS_axis_offset[3];
-                CS_axis_offset[1] /= CS_axis_offset[3];
-                CS_axis_offset[2] /= CS_axis_offset[3];
-
-                uibase::Vec3_t CS_axis_direction = uibase::vec3_sub(*(uibase::Vec3_t*)(&CS_axis_offset),
-                                                                    *(uibase::Vec3_t*)(&CS_gizmo_position));
-
-                CS_axis_direction[1] *= AspectRatio(state_.screen_size);
-
-                uibase::Vec3_t const result = uibase::vec3_add(
-                    gizmo.position_,
-                    uibase::vec3_float_mul(
-                        uibase::vec3_add(
-                            uibase::vec3_float_mul(selected_axis, CS_axis_direction[0]*deltaf[0]),
-                            uibase::vec3_float_mul(selected_axis, CS_axis_direction[1]*deltaf[1])),
-                        0.1f));
-
-                std::memcpy(&gizmo.position_[0], &result[0], 3*sizeof(float));
-
-                std::uint32_t const gizmo_index = uibase::UnpackGizmoIndex(state_.select_gizmo);
-                if (gizmo_index < sr_layer_->kGizmoCountMax)
-                    std::memcpy(&(sr_layer_->gizmo_positions[gizmo_index-1]),
-                                &gizmo.position_[0],
-                                sizeof(float)*3);
-            }
-        }
     }
 }
 
@@ -347,15 +356,25 @@ LayerMediator::RunFrame(float _dt)
 {
     bool result = false;
 
-    static constexpr float kCameraAngleSpeed = 25.f;
+    static constexpr float kCameraKeyboardAngleSpeed = 25.f;
     if (state_.key_down[appbase::kUp])
-        state_.camera_rotation[0] += kCameraAngleSpeed * _dt;
+        state_.camera_rotation[0] += kCameraKeyboardAngleSpeed * _dt;
     if (state_.key_down[appbase::kDown])
-        state_.camera_rotation[0] -= kCameraAngleSpeed * _dt;
+        state_.camera_rotation[0] -= kCameraKeyboardAngleSpeed * _dt;
     if (state_.key_down[appbase::kLeft])
-        state_.camera_rotation[1] += kCameraAngleSpeed * _dt;
+        state_.camera_rotation[1] += kCameraKeyboardAngleSpeed * _dt;
     if (state_.key_down[appbase::kRight])
-        state_.camera_rotation[1] -= kCameraAngleSpeed * _dt;
+        state_.camera_rotation[1] -= kCameraKeyboardAngleSpeed * _dt;
+
+    if (state_.camera_enable_mouse_control)
+    {
+        static constexpr float kCameraMouseAngleSpeed = 0.5f;
+        uibase::Vec3_t mouse_rot = uibase::vec3_float_mul(
+            uibase::Vec3_t{ (float)state_.mouse_delta[1], -(float)state_.mouse_delta[0], 0.f }
+            , kCameraMouseAngleSpeed);
+
+        state_.camera_rotation = uibase::vec3_add(state_.camera_rotation, mouse_rot);
+    }
 
     if (state_.camera_rotation[0] > 360.f)
         state_.camera_rotation[0] -= 360.f;
@@ -366,9 +385,9 @@ LayerMediator::RunFrame(float _dt)
     if (state_.camera_rotation[1] < 0.f)
         state_.camera_rotation[1] += 360.f;
 
-    float camspeed = 1.f;
+    float camspeed = 5.f;
     if (state_.mod_down & appbase::kShift)
-        camspeed *= 100.f;
+        camspeed *= 5.f;
     uibase::Vec3_t t{ 0.f, 0.f, 0.f };
     if (state_.key_down['w'])
         t[2] -= camspeed * _dt;
@@ -385,7 +404,7 @@ LayerMediator::RunFrame(float _dt)
 
     uibase::Mat4_t camrot = uibase::mat4_rot(state_.camera_rotation);
     uibase::Vec3_t lt = uibase::vec3_from_vec4(
-        uibase::mat4_vec4_mul(camrot, uibase::vec4_from_vec3(t, 0.f)));
+        uibase::mat4_vec4_mul(camrot, uibase::vec3_float_concat(t, 0.f)));
 
     state_.camera_position = uibase::vec3_add(lt, state_.camera_position);
 
@@ -403,6 +422,9 @@ LayerMediator::RunFrame(float _dt)
     uibase::Mat4_t cammat = MakeCameraMatrix(state_.camera_position,
                                              camtarget,
                                              camup);
+
+    //state_.mouse_delta = uibase::Vec2i_t{ 0, 0 };
+
 
     if (gizmo_layer_)
         framebuffer_->Bind();

@@ -32,6 +32,7 @@ find_package(Boost REQUIRED MODULE
 find_package(OpenGL REQUIRED)
 find_package(GLEW REQUIRED PATHS ${LIB_DIR})
 find_package(imgui CONFIG REQUIRED PATHS ${LIB_DIR})
+find_package(bass CONFIG QUIET PATHS ${LIB_DIR})
 # ==============================================================================
 
 set(UTILITY_DIR ${SOURCE_DIR}/utility)
@@ -217,10 +218,13 @@ endif()
 
 # ______________________________________________________________________________
 
+find_package(X11 REQUIRED)
+
 add_executable(xlib_bootstrap ${XLIB_BOOTSTRAP_SOURCES})
 target_link_libraries(xlib_bootstrap
     PRIVATE
 		X11
+		X11::Xfixes
 		appbase
 		bass::bass
 )

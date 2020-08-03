@@ -22,6 +22,8 @@ using Vec3_t = std::array<float, 3>;
 using Vec2_t = std::array<float, 2>;
 using Vec2i_t = std::array<int, 2>;
 using Mat4_t = std::array<float, 16>;
+using Quat_t = std::array<float, 4>;
+using dQuat_t = std::array<float, 8>;
 
 inline Mat4_t perspective(float n, float f, float alpha, float how)
 {
@@ -36,42 +38,68 @@ inline Mat4_t perspective(float n, float f, float alpha, float how)
 }
 
 inline Vec2i_t
-vec2i_sub(Vec2i_t const& _lhs, Vec2i_t const&_rhs) {
+vec2i_sub(Vec2i_t const& _lhs, Vec2i_t const&_rhs)
+{
     return Vec2i_t{ _lhs[0] - _rhs[0], _lhs[1] - _rhs[1] };
 }
 
+inline Vec2i_t
+vec2i_int_div(Vec2i_t const& _lhs, int _rhs)
+{
+    return Vec2i_t{ _lhs[0] / _rhs, _lhs[1] / _rhs };
+}
+
+inline bool
+vec2i_equal(Vec2i_t const& _lhs, Vec2i_t const& _rhs)
+{
+    return (_lhs[0] == _rhs[0]) && (_lhs[1] == _rhs[1]);
+}
+
+inline Vec2_t
+vec2_itof(Vec2i_t const& _in)
+{
+    return Vec2_t{ (float)_in[0], (float)_in[1] };
+}
+
 inline Vec3_t
-vec3_from_vec4(Vec4_t const& _o) {
+vec3_from_vec4(Vec4_t const& _o)
+{
     return Vec3_t{ _o[0], _o[1], _o[2] };
 }
 
 inline Vec3_t
-vec3_sub(Vec3_t const& _lhs, Vec3_t const& _rhs) {
+vec3_sub(Vec3_t const& _lhs, Vec3_t const& _rhs)
+{
     return Vec3_t{ _lhs[0]-_rhs[0], _lhs[1]-_rhs[1], _lhs[2]-_rhs[2] };
 }
 
 inline Vec3_t
-vec3_add(Vec3_t const& _lhs, Vec3_t const& _rhs) {
+vec3_add(Vec3_t const& _lhs, Vec3_t const& _rhs)
+{
     return Vec3_t{ _lhs[0]+_rhs[0], _lhs[1]+_rhs[1], _lhs[2]+_rhs[2] };
 }
 
 inline Vec3_t
-vec3_float_mul(Vec3_t const& _lhs, float _rhs) {
+vec3_float_mul(Vec3_t const& _lhs, float _rhs)
+{
     return Vec3_t{ _lhs[0]*_rhs, _lhs[1]*_rhs, _lhs[2]*_rhs };
 }
 
 inline Vec3_t
-vec3_cwise_mul(Vec3_t const& _lhs, Vec3_t const& _rhs) {
+vec3_cwise_mul(Vec3_t const& _lhs, Vec3_t const& _rhs)
+{
     return Vec3_t{ _lhs[0]*_rhs[0], _lhs[1]*_rhs[1], _lhs[2]*_rhs[2] };
 }
 
 inline float
-vec3_dot(Vec3_t const& _lhs, Vec3_t const& _rhs) {
+vec3_dot(Vec3_t const& _lhs, Vec3_t const& _rhs)
+{
     return _lhs[0]*_rhs[0] + _lhs[1]*_rhs[1] + _lhs[2]*_rhs[2];
 }
 
 inline Vec3_t
-vec3_cross(Vec3_t const& _lhs, Vec3_t const& _rhs) {
+vec3_cross(Vec3_t const& _lhs, Vec3_t const& _rhs)
+{
     return Vec3_t{
         _lhs[1]*_rhs[2] - _lhs[2]*_rhs[1],
         _lhs[2]*_rhs[0] - _lhs[0]*_rhs[2],
@@ -80,7 +108,8 @@ vec3_cross(Vec3_t const& _lhs, Vec3_t const& _rhs) {
 }
 
 inline Vec3_t
-vec3_normalise(Vec3_t const& _op) {
+vec3_normalise(Vec3_t const& _op)
+{
     return vec3_float_mul(_op, 1.f/sqrt(vec3_dot(_op, _op)));
 }
 
@@ -90,14 +119,16 @@ vec3_float_concat(Vec3_t const& _lhs, float const& _rhs)
     return Vec4_t{ _lhs[0], _lhs[1], _lhs[2], _rhs };
 }
 
-inline Vec2_t
-vec2_itof(Vec2i_t const& _in) {
-    return Vec2_t{ (float)_in[0], (float)_in[1] };
+inline Vec4_t
+vec4_add(Vec4_t const& _lhs, Vec4_t const& _rhs)
+{
+    return Vec4_t{ _lhs[0] + _rhs[0], _lhs[1] + _rhs[1], _lhs[2] + _rhs[2], _lhs[3] + _rhs[3] };
 }
 
 inline Vec4_t
-vec4_from_vec3(Vec3_t const& _lhs, float _rhs) {
-    return Vec4_t{ _lhs[0], _lhs[1], _lhs[2], _rhs };
+vec4_float_mul(Vec4_t const& _lhs, float _rhs)
+{
+    return Vec4_t{ _lhs[0] * _rhs, _lhs[1] * _rhs, _lhs[2] * _rhs, _lhs[3] * _rhs};
 }
 
 inline float
@@ -186,6 +217,93 @@ mat4_rot(Vec3_t const& _eulerDeg)
     };
 
     return mat4_mul(y, mat4_mul(x, z));
+}
+
+inline Mat4_t
+mat4_from_quat(Quat_t const& _op)
+{
+    return Mat4_t{
+        1.f - 2.f*(_op[2]*_op[2] + _op[3]*_op[3]),
+        2.f*(_op[1]*_op[2] + _op[3]*_op[0]),
+        2.f*(_op[1]*_op[2] + _op[2]*_op[0]),
+        0.f,
+
+        2.f*(_op[1]*_op[2] + _op[3]*_op[0]),
+        1.f - 2.f*(_op[1]*_op[1] + _op[3]*_op[3]),
+        2.f*(_op[2]*_op[3] + _op[1]*_op[0]),
+        0.f,
+
+        2.f*(_op[1]*_op[3] + _op[2]*_op[0]),
+        2.f*(_op[2]*_op[3] + _op[1]*_op[0]),
+        1.f - 2.f*(_op[1]*_op[1] + _op[2]*_op[2]),
+        0.f,
+
+        0.f, 0.f, 0.f, 1.f
+    };
+}
+
+inline Quat_t
+quat_add(Quat_t const& _lhs, Quat_t const& _rhs)
+{
+    return (Quat_t)vec4_add((Vec4_t)_lhs, (Vec4_t)_rhs);
+}
+
+inline Quat_t
+quat_mul(Quat_t const& _lhs, Quat_t const& _rhs)
+{
+    // 1 i j k
+    // i −1 k −j
+    // j −k −1 i
+    // k j −i −1
+
+    return Quat_t{
+        _lhs[0]*_rhs[0] - _lhs[1]*_rhs[1] - _lhs[2]*_rhs[2] - _lhs[3]*_rhs[3],
+        _lhs[0]*_rhs[1] + _lhs[1]*_rhs[0] + _lhs[2]*_rhs[3] - _lhs[3]*_rhs[2],
+        _lhs[0]*_rhs[2] - _lhs[1]*_rhs[3] + _lhs[2]*_rhs[0] + _lhs[3]*_rhs[1],
+        _lhs[0]*_rhs[3] + _lhs[1]*_rhs[2] - _lhs[2]*_rhs[1] + _lhs[3]*_rhs[0]
+    };
+}
+
+inline Quat_t
+quat_float_mul(Quat_t const& _lhs, float _rhs)
+{
+    return (Quat_t)vec4_float_mul((Vec4_t)_lhs, _rhs);
+}
+
+inline Quat_t
+quat_normalize(Quat_t const& _op)
+{
+    return quat_float_mul(_op, 1.f / std::sqrt(vec4_dot((Vec4_t)_op, (Vec4_t)_op)));
+}
+
+inline Quat_t
+quat_conjugate(Quat_t const& _op)
+{
+    return Quat_t{ _op[0], -_op[1], -_op[2], -_op[3] };
+}
+
+inline Quat_t
+quat_slerp(Quat_t const& _lhs, Quat_t const& _rhs, float _t)
+{
+    float costh = vec3_dot(*(Vec3_t*)&_lhs[1], *(Vec3_t*)&_rhs[1]);
+    float sign = (costh < 0.f) ? -1.f : 1.f;
+    float theta = std::acos(costh);
+    float t_theta = _t * theta;
+    float sinth = std::sin(theta);
+    float f0 = std::sin(theta - t_theta) / sinth;
+    float f1 = std::sin(t_theta) / sinth;
+    return quat_add(quat_float_mul(_lhs, f0), quat_float_mul(_rhs, f1));
+}
+
+inline dQuat_t
+dquat(float _angle, Vec3_t _axis, Vec3_t _t)
+{
+    float const half_angle = _angle / 2.f;
+    float const sin_ha = std::sin(half_angle);
+    Quat_t const r{ std::cos(half_angle), _axis[0] * sin_ha, _axis[1] * sin_ha, _axis[2] * sin_ha };
+    Quat_t const t{ 0, _t[0], _t[1], _t[2] };
+    Quat_t const dual = quat_float_mul(quat_mul(t, r), .5f);
+    return dQuat_t{ r[0], r[1], r[2], r[3], dual[0], dual[1], dual[2], dual[3] };
 }
 
 } // namespace uibase

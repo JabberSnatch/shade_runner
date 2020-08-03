@@ -38,6 +38,7 @@ struct LayerMediator
     void ResizeEvent(uibase::Vec2i_t const& _size);
     void MouseDown(bool _v);
     void MousePos(uibase::Vec2i_t const& _pos);
+    void MouseDelta(uibase::Vec2i_t const& _delta);
     void KeyDown(std::uint32_t _key, std::uint32_t _mod, bool _v);
     bool RunFrame(float _dt);
 

@@ -13,6 +13,7 @@
 #include <chrono>
 #include <cstring>
 
+#include <X11/extensions/Xfixes.h>
 #include <X11/Xlib.h>
 #include <X11/Xos.h>
 #include <X11/Xatom.h>
@@ -291,6 +292,7 @@ int main(int __argc, char* __argv[])
     int i = 0;
     float frame_time = 0.f;
     float last_frame_time = 0.f;
+    bool hide_cursor = false;
     for(bool run = true; run;)
     {
         auto start = StdClock::now();
@@ -332,6 +334,23 @@ int main(int __argc, char* __argv[])
                     char kc = '\0';
                     KeySym ks;
                     XLookupString(&xkevent, &kc, 1, &ks, nullptr);
+
+                    if (ks == XK_Escape && xevent.type == KeyPress)
+                    {
+                        if (!hide_cursor)
+                        {
+                            XFixesHideCursor(display, window);
+                            std::cout << "cursor hidden" << std::endl;
+                        }
+                        else
+                        {
+                            XFixesShowCursor(display, window);
+                            std::cout << "cursor shown" << std::endl;
+                        }
+                        hide_cursor = !hide_cursor;
+                        layer_mediator->state_.camera_enable_mouse_control = hide_cursor;
+                    }
+
                     if (((unsigned)ks & 0xff00) == 0xff00)
                         layer_mediator->KeyDown((std::uint32_t)ks, km, (xevent.type == KeyPress));
                     else
@@ -342,7 +361,8 @@ int main(int __argc, char* __argv[])
             case MotionNotify:
             {
                 XMotionEvent const& xmevent = xevent.xmotion;
-                layer_mediator->MousePos({ xmevent.x, layer_mediator->state_.screen_size[1] - xmevent.y });
+                uibase::Vec2i_t mouse_pos{ xmevent.x, layer_mediator->state_.screen_size[1] - xmevent.y };
+                layer_mediator->MousePos(mouse_pos);
             } break;
 
             case DestroyNotify:
@@ -361,9 +381,29 @@ int main(int __argc, char* __argv[])
             std::cout << XGetAtomName(display, xevent.xclient.message_type) << std::endl;
             run = !(xevent.xclient.data.l[0] == wm_delete_window);
         }
-        if (!run) break;
 
-        if (!layer_mediator->RunFrame(last_frame_time)) break;
+        if (!run)
+            break;
+
+
+        uibase::Vec2i_t mouse_delta = uibase::vec2i_sub(layer_mediator->state_.mouse_pos,
+                                                        layer_mediator->back_state_.mouse_pos);
+        layer_mediator->MouseDelta(mouse_delta);
+
+        if (hide_cursor)
+        {
+            uibase::Vec2i_t warp_pos = uibase::vec2i_int_div(layer_mediator->state_.screen_size, 2);
+            if (!uibase::vec2i_equal(layer_mediator->state_.mouse_pos, warp_pos))
+            {
+                XWarpPointer(display, None, window, 0, 0, 0, 0,
+                             warp_pos[0],
+                             layer_mediator->state_.screen_size[1] - warp_pos[1]);
+            }
+            layer_mediator->MousePos(warp_pos);
+        }
+
+        if (!layer_mediator->RunFrame(last_frame_time))
+            break;
 
         glXSwapBuffers(display, window);
 

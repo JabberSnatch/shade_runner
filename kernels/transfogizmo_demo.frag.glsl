@@ -44,8 +44,8 @@ float sdDiamond(vec3 p, float r)
 
 float scene(vec3 p)
 {
-    float distance = sdSphere(p - iGizmos[0], 1.0);
-    for (int i = 1; i < iGizmoCount; ++i)
+    float distance = sdSphere(p - iGizmos[0], 10.0);
+    for (int i = 1; i < iGizmoCount-1; ++i)
     {
         float lhs = 0.0;
 #if 1
@@ -112,8 +112,8 @@ float fresnel_term(vec3 l, vec3 n, float ior_out, float ior_in)
 // MAIN
 // ================================================================================
 
-const int kMaxStep = 16;
-const int kShadowStep = 4;
+const int kMaxStep = 8;
+const int kShadowStep = 8;
 const float kStepMultiplier = 1.0;
 
 void imageMain(inout vec4 frag_color, vec2 frag_coord)
@@ -133,8 +133,8 @@ void imageMain(inout vec4 frag_color, vec2 frag_coord)
 
 	vec3 bg_color = vec3(0.2);
 
-	float light_falloff = 5.0;
-	vec3 lp = vec3(sin(iTime) * 5.0, cos(iTime) * 3.0, 2.0);
+	float light_falloff = 10.0;
+	vec3 lp = iGizmos[iGizmoCount-1];//vec3(sin(iTime) * 5.0, cos(iTime) * 3.0, 2.0);
 
 	vec3 n = normal(position);
 	vec3 l = normalize(lp - position);
@@ -142,7 +142,7 @@ void imageMain(inout vec4 frag_color, vec2 frag_coord)
 	float F = fresnel_term(l, n, 1.0, 1.5);
 	vec3 base_color = scene_color(position);
 
-#if 0
+#if 1
 	vec3 sp = lp;
 	for (int shadow_step = 0; shadow_step < kShadowStep; shadow_step++)
 	{
@@ -154,4 +154,15 @@ void imageMain(inout vec4 frag_color, vec2 frag_coord)
 #endif
 
 	frag_color.xyz = base_color * (Li * (1.0 + F)) * occlusion;
+	if (rm_dist > 0.1)
+	{
+        float pt = (-100.f - origin.y) / ray.y;
+        if (pt > 0.f)
+        {
+            vec3 p = (origin.xyz/origin.w) + ray * pt;
+            frag_color.xyz = mix(vec3(0.7, 0.5, 0.1), vec3(0.5, 0.2, 0.4), sin(length(p*0.01)) * 0.5 + 0.5) * 0.2;
+        }
+        else
+            frag_color.xyz = bg_color;//vec3(0.0, 0.0, 0.0);
+	}
 }

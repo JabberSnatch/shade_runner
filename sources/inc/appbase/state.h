@@ -52,6 +52,7 @@ struct State {
     uibase::Vec2i_t screen_size{ 0, 0 };
     bool mouse_down{ false };
     uibase::Vec2i_t mouse_pos{ -1, -1 };
+    uibase::Vec2i_t mouse_delta{ 0, 0 };
     std::array<bool, 256> key_down;
 
     std::uint32_t mod_down;
@@ -64,6 +65,7 @@ struct State {
 
     uibase::Vec3_t camera_position{0.f, 0.f, 0.f};
     uibase::Vec3_t camera_rotation{0.f, 0.f, 0.f};
+    bool camera_enable_mouse_control = false;
 };
 
 } // namespace appbase
